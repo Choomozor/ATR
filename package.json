@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "aoe4-atr",
+  "name": "<% name %>",
   "version": "0.0.0",
   "license": "BSD-3-Clause",
   "type": "module",
