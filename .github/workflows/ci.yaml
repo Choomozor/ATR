@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: ['reddit-app']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-fund
+      - name: Typecheck
+        run: npx tsc --build --pretty false
+      - name: Lint
+        if: always()
+        run: npm run lint
+      - name: Unit tests
+        if: always()
+        run: npm run test:unit
+      - name: Build
+        if: always()
+        run: npm run build

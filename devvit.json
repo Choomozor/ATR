@@ -1,0 +1,74 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "aoe4-atr",
+  "post": {
+    "dir": "dist/client",
+    "entrypoints": {
+      "default": {
+        "inline": true,
+        "entry": "splash.html"
+      },
+      "ranking": {
+        "entry": "game.html"
+      }
+    }
+  },
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "permissions": {
+    "http": {
+      "enable": true,
+      "domains": ["docs.google.com", "aoe4world.com"]
+    },
+    "redis": true
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "ATR: create ranking post",
+        "description": "Post the interactive AoE4 Esports Tournament Ranking",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/post-create"
+      },
+      {
+        "label": "ATR: sync data now",
+        "description": "Re-read the ATR Google Sheet right away",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/sync"
+      },
+      {
+        "label": "ATR: link player to AoE4World",
+        "description": "Fix a wrong AoE4World profile match",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/link-player"
+      }
+    ]
+  },
+  "forms": {
+    "linkPlayerForm": "/internal/form/link-player"
+  },
+  "scheduler": {
+    "tasks": {
+      "atr-sync": {
+        "endpoint": "/internal/scheduler/atr-sync",
+        "cron": "7 */3 * * *"
+      },
+      "atr-sync-now": {
+        "endpoint": "/internal/scheduler/atr-sync-now"
+      }
+    }
+  },
+  "triggers": {
+    "onAppInstall": "/internal/triggers/on-app-install",
+    "onAppUpgrade": "/internal/triggers/on-app-upgrade"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  }
+}

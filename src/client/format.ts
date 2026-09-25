@@ -1,0 +1,27 @@
+export const pct = (rate: number | null | undefined): string =>
+  rate === null || rate === undefined ? '–' : `${Math.round(rate * 100)}%`;
+
+export const signed = (n: number, digits = 0): string => {
+  const v = digits ? n.toFixed(digits) : String(Math.round(n));
+  return n > 0 ? `+${v}` : v;
+};
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "2026-09-20" -> "20 Sep 2026" (no locale surprises inside the Reddit webview). */
+export const shortDate = (iso: string | null | undefined): string => {
+  if (!iso) return '–';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${Number(d)} ${MONTHS[Number(m) - 1] ?? ''} ${y}`;
+};
+
+export async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  const body: unknown = await res.json();
+  if (!res.ok) {
+    const message =
+      typeof body === 'object' && body !== null && 'message' in body ? String(body.message) : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return body as T;
+}
