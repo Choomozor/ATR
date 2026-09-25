@@ -91,8 +91,6 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    setData(null);
-    setFailed(false);
     getJson<Aoe4WorldResponse>(`/api/aoe4world?name=${encodeURIComponent(name)}`).then(setData, () =>
       setFailed(true)
     );
@@ -144,8 +142,6 @@ const H2HBox = ({ a, b, onPick }: { a: string; b: string; onPick: (name: string)
   const [data, setData] = useState<H2HResponse | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    setData(null);
-    setFailed(false);
     getJson<H2HResponse>(`/api/h2h?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`).then(setData, () =>
       setFailed(true)
     );
@@ -193,10 +189,6 @@ const PlayerView = ({
   const [compare, setCompare] = useState<string | null>(null);
 
   useEffect(() => {
-    setData(null);
-    setError(null);
-    setCompare(null);
-    setRival('');
     getJson<PlayerResponse>(`/api/player?name=${encodeURIComponent(name)}`).then(setData, (e: unknown) =>
       setError(e instanceof Error ? e.message : 'Could not load player')
     );
@@ -290,7 +282,7 @@ const PlayerView = ({
           )}
 
           <Section title="Ranked ladder (AoE4World)">
-            <Aoe4WorldCard name={data.name} />
+            <Aoe4WorldCard key={data.name} name={data.name} />
           </Section>
 
           <Section title="Head-to-head">
@@ -325,7 +317,7 @@ const PlayerView = ({
                 ))}
               </div>
             )}
-            {compare && <H2HBox a={data.name} b={compare} onPick={onPick} />}
+            {compare && <H2HBox key={`${data.name}|${compare}`} a={data.name} b={compare} onPick={onPick} />}
           </Section>
 
           <Section title="Recent series">
@@ -400,8 +392,6 @@ export const App = () => {
     );
   }, [board, query, region, showInactive]);
 
-  useEffect(() => setLimit(PAGE), [query, region, showInactive]);
-
   const openPlayer = (name: string) => {
     setPlayer(name);
     window.scrollTo(0, 0);
@@ -416,7 +406,7 @@ export const App = () => {
       </datalist>
 
       {player ? (
-        <PlayerView name={player} names={names} onBack={() => setPlayer(null)} onPick={openPlayer} />
+        <PlayerView key={player} name={player} names={names} onBack={() => setPlayer(null)} onPick={openPlayer} />
       ) : (
         <>
           <header className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-4 pb-3 pt-3 backdrop-blur dark:border-stone-800 dark:bg-stone-950/95">
@@ -429,7 +419,10 @@ export const App = () => {
             </div>
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setLimit(PAGE);
+              }}
               placeholder="Search a player or country…"
               className="mt-2 h-9 w-full rounded-full bg-white px-3 text-sm ring-1 ring-stone-300 outline-none focus:ring-amber-600 dark:bg-stone-900 dark:ring-stone-700"
             />
@@ -437,7 +430,10 @@ export const App = () => {
               {regions.map((r) => (
                 <button
                   key={r}
-                  onClick={() => setRegion(r)}
+                  onClick={() => {
+                    setRegion(r);
+                    setLimit(PAGE);
+                  }}
                   className={`h-7 shrink-0 rounded-full px-3 text-xs font-semibold ${
                     region === r
                       ? 'bg-amber-600 text-white'
@@ -451,7 +447,10 @@ export const App = () => {
                 <input
                   type="checkbox"
                   checked={showInactive}
-                  onChange={(e) => setShowInactive(e.target.checked)}
+                  onChange={(e) => {
+                    setShowInactive(e.target.checked);
+                    setLimit(PAGE);
+                  }}
                   className="accent-amber-600"
                 />
                 Inactive
