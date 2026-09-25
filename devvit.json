@@ -20,7 +20,10 @@
   "permissions": {
     "http": {
       "enable": true,
-      "domains": ["docs.google.com", "aoe4world.com"]
+      "domains": [
+        "docs.google.com",
+        "aoe4world.com"
+      ]
     },
     "redis": true
   },
@@ -46,6 +49,13 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/link-player"
+      },
+      {
+        "label": "ATR: load sample data (testing)",
+        "description": "Fill the ranking with a built-in sample while the sheet can't be fetched yet",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/load-sample"
       }
     ]
   },

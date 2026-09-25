@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import { context, scheduler } from '@devvit/web/server';
 import { createPost } from '../core/post';
+import { loadSample } from '../core/sync';
 
 export const menu = new Hono();
 
@@ -44,5 +45,12 @@ menu.post('/link-player', async (c) => {
         ],
       },
     },
+  });
+});
+
+menu.post('/load-sample', async (c) => {
+  const status = await loadSample();
+  return c.json<UiResponse>({
+    showToast: status.ok ? `Sample loaded: ${status.message}` : `Could not load the sample: ${status.message}`,
   });
 });
