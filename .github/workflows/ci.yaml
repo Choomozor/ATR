@@ -29,9 +29,4 @@ jobs:
         if: always()
         run: |
           npm run build
-          echo "::notice::flag files in build: $(ls dist/client/assets | grep -c '\.svg$' || true)"
-          echo "::notice::client assets: $(du -sh dist/client | cut -f1), server bundle: $(du -sh dist/server | cut -f1)"
-          echo "::notice::client files: $(cd dist/client && find . -type f | head -20 | tr '\n' ' ')"
-          echo "::notice::inlined svgs: $(grep -o 'data:image/svg+xml' -r dist/client | wc -l), fr.svg refs: $(grep -o '[^\"]*fr[-.a-zA-Z0-9_]*\.svg' -r dist/client --include=*.js | head -3 | tr '\n' ' ')"
-          echo "::notice::flag-icons installed: $(ls node_modules/flag-icons/flags/4x3 2>/dev/null | wc -l)"
-          echo "::notice::server files: $(cd dist/server && ls -la | tr '\n' ' ' | head -c 600)"
+          echo "::notice::flags in build: $(ls dist/client | grep -c '\.svg$' || true), client: $(du -sh dist/client | cut -f1), server: $(du -sh dist/server/index.cjs | cut -f1)"
