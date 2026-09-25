@@ -397,10 +397,8 @@ export function pickAoe4WorldProfile<T extends Aoe4WorldPlayer>(players: T[], at
   for (const p of players) {
     const full = simplify(p.name);
     const bare = simplify(stripTag(p.name));
-    let score = 0;
-    if (bare === target) score = 100;
-    else if (full === target) score = 95;
-    else continue;
+    if (bare !== target && full !== target) continue;
+    let score = bare === target ? 100 : 95;
     if (p.social?.liquipedia) score += 30;
     const solo = p.leaderboards?.rm_solo;
     if (solo?.rating) score += Math.min(solo.rating, 3000) / 1000;
