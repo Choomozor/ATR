@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "<% name %>",
+  "name": "aoe4---leaderboard",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -80,5 +80,8 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build"
+  },
+  "dev": {
+    "subreddit": "aoe4___leaderboar_dev"
   }
 }
