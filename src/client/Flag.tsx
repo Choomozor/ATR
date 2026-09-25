@@ -1,13 +1,13 @@
 import { countryCode } from '../shared/countries';
 
 // Every flag becomes its own small SVG file in the build; only the ones on screen are downloaded.
-const FLAGS = import.meta.glob<string>('/node_modules/flag-icons/flags/4x3/*.svg', {
+const FLAGS = import.meta.glob<string>('../../node_modules/flag-icons/flags/4x3/*.svg', {
   eager: true,
   query: '?no-inline',
   import: 'default',
 });
 
-const flagUrl = (code: string): string | undefined => FLAGS[`/node_modules/flag-icons/flags/4x3/${code}.svg`];
+const flagUrl = (code: string): string | undefined => FLAGS[`../../node_modules/flag-icons/flags/4x3/${code}.svg`];
 
 export const Flag = ({ country, className = '' }: { country: string; className?: string }) => {
   const code = country ? countryCode(country) : null;
