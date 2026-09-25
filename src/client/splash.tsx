@@ -11,7 +11,7 @@ export const Splash = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getJson<TopResponse>('/api/top?n=5').then(setData, (e: unknown) =>
+    getJson<TopResponse>('/api/top?n=32').then(setData, (e: unknown) =>
       setError(e instanceof Error ? e.message : 'Could not load the ranking')
     );
   }, []);
@@ -23,29 +23,30 @@ export const Splash = () => {
           <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-400">
             AoE4 Esports Tournament Ranking
           </p>
-          <h1 className="text-lg font-bold leading-tight">Tournament Elo · Top 5</h1>
+          <h1 className="text-lg font-bold leading-tight">Tournament Elo · Top 32</h1>
         </div>
         {data && <span className="shrink-0 text-xs text-stone-500">Updated {shortDate(data.sheetDate)}</span>}
       </header>
 
-      <ol className="mt-2 flex-1 divide-y divide-stone-200 dark:divide-stone-800">
+      <ol className="mt-2 min-h-0 flex-1 divide-y divide-stone-200 overflow-y-auto dark:divide-stone-800">
         {error && <li className="py-3 text-sm text-stone-500">{error}</li>}
-        {!data && !error &&
-          Array.from({ length: 5 }, (_, i) => (
-            <li key={i} className="h-9 animate-pulse py-2">
+        {!data &&
+          !error &&
+          Array.from({ length: 8 }, (_, i) => (
+            <li key={i} className="h-7 animate-pulse py-1.5">
               <div className="h-4 w-2/3 rounded bg-stone-200 dark:bg-stone-800" />
             </li>
           ))}
         {data?.rows.map((r) => (
-          <li key={r.name} className="flex items-center gap-3 py-2">
-            <span className="w-5 text-right text-sm font-bold tabular-nums text-amber-700 dark:text-amber-400">
+          <li key={r.name} className="flex items-center gap-2 py-1 text-sm">
+            <span className="w-6 text-right text-xs font-bold tabular-nums text-amber-700 dark:text-amber-400">
               {r.rank}
             </span>
-            <span className="flex-1 truncate font-semibold">{r.name}</span>
-            <span className="text-xs text-stone-500">{r.country}</span>
-            <span className="w-14 text-right font-mono text-sm tabular-nums">{Math.round(r.elo)}</span>
+            <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
+            <span className="hidden w-24 truncate text-right text-xs text-stone-500 sm:block">{r.country}</span>
+            <span className="w-12 text-right font-mono tabular-nums">{Math.round(r.elo)}</span>
             <span
-              className={`w-10 text-right text-xs tabular-nums ${
+              className={`w-9 text-right text-xs tabular-nums ${
                 r.eloChange > 0 ? 'text-emerald-600' : r.eloChange < 0 ? 'text-rose-600' : 'text-stone-400'
               }`}
             >

@@ -1,3 +1,4 @@
+import { gunzipSync } from 'node:zlib';
 import { redis } from '@devvit/web/server';
 import {
   buildBoard,
@@ -18,6 +19,7 @@ import {
   sheetCsvUrl,
 } from './config';
 import { ELO_CSV as SAMPLE_ELO_CSV, TRDB_CSV as SAMPLE_TRDB_CSV } from './sample';
+import { SNAPSHOT_DATE, SNAPSHOT_GZIP_BASE64 } from './snapshot';
 
 export type StoredBoard = {
   sheetDate: string;
@@ -55,9 +57,23 @@ export async function runSync(): Promise<SyncStatus> {
   }
 }
 
-/** Loads the bundled sample so the post can be tested before the sheet can be fetched. */
+/**
+ * Loads data bundled with the app, for testing before the sheet can be fetched:
+ * the full snapshot made by `npm run snapshot` if there is one, otherwise the small built-in sample.
+ */
 export async function loadSample(): Promise<SyncStatus> {
-  return storeData(parseCsv(SAMPLE_ELO_CSV), parseCsv(SAMPLE_TRDB_CSV), ' (sample data)');
+  try {
+    if (SNAPSHOT_GZIP_BASE64) {
+      const json = gunzipSync(Buffer.from(SNAPSHOT_GZIP_BASE64, 'base64')).toString('utf8');
+      const { elo, trdb } = JSON.parse(json) as { elo: string; trdb: string };
+      return await storeData(parseCsv(elo), parseCsv(trdb), ` (snapshot of ${SNAPSHOT_DATE})`);
+    }
+    return await storeData(parseCsv(SAMPLE_ELO_CSV), parseCsv(SAMPLE_TRDB_CSV), ' (small sample)');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Loading bundled data failed:', message);
+    return { ok: false, at: new Date().toISOString(), message };
+  }
 }
 
 async function storeData(eloRows: string[][], trdbRows: string[][], label: string): Promise<SyncStatus> {

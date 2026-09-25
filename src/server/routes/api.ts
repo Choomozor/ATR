@@ -40,7 +40,7 @@ api.get('/board', async (c) => {
 api.get('/top', async (c) => {
   const board = await readBoard();
   if (!board) return notSynced(c);
-  const n = Math.min(Number.parseInt(c.req.query('n') ?? '5', 10) || 5, 25);
+  const n = Math.min(Number.parseInt(c.req.query('n') ?? '5', 10) || 5, 50);
   return c.json<TopResponse>({
     sheetDate: board.sheetDate,
     rows: board.rows.filter((r) => r.active).slice(0, n),

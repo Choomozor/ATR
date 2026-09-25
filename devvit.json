@@ -51,8 +51,8 @@
         "endpoint": "/internal/menu/link-player"
       },
       {
-        "label": "ATR: load sample data (testing)",
-        "description": "Fill the ranking with a built-in sample while the sheet can't be fetched yet",
+        "label": "ATR: load bundled data (testing)",
+        "description": "Fill the ranking with the data packed into the app (run npm run snapshot to include the full sheet)",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/load-sample"
