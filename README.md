@@ -2,10 +2,13 @@
 
 An interactive post for r/aoe4 that brings the community-run **AoE4 Esports Tournament Ranking** into Reddit:
 
-- **Tournament Elo leaderboard** with search, region filters and movement since the last ATR update.
-- **Player pages** built from every recorded tournament series: series and map win rate, last 12 months, win rate by tournament tier (S/A/B/C), record against the current top 10, peak Elo, current streak, most-played rivals and recent results.
-- **Head-to-head** between any two players.
+- **Tournament Elo leaderboard** with search, region filters, movement since the last ATR update and each player's last 5 results.
+- **Player pages** built from every recorded tournament series: Elo history chart, series and map win rate, win rate by tournament tier (S/A/B/C), record against the current top 10, peak Elo, current streak, most-played rivals and recent results, for all time, the last 12 months or the current year. A "Copy link" button shares a player's numbers with a link to the post.
+- **Head-to-head** between any two players, with each player's win chance from their current Tournament Elo.
+- **Nations** ranked by the average Tournament Elo of their 3 best active players, with each nation's top 5.
+- **Tournaments**: every event in the ATR with its series and the biggest Elo gains and losses.
 - **Ranked ladder** status from AoE4World (1v1 rating, ladder rank, season win rate) next to the tournament numbers.
+- **Automatic update post** (optional): when the ATR sheet is updated, the app posts the new top 10, biggest risers and drops, new entries in the top 32 and the upset of the update.
 
 The data is read from the public ATR Google Sheet every 3 hours. Nothing is collected from Reddit users.
 
@@ -17,7 +20,11 @@ After installing the app, three items appear in the subreddit's mod menu (⋯ on
 | --- | --- |
 | **ATR: create ranking post** | Posts the interactive ranking. Pin it or add it to a wiki/sidebar link. |
 | **ATR: sync data now** | Re-reads the ATR sheet right away (it also runs automatically every 3 hours and on install/upgrade). |
+| **ATR: post update summary** | Posts the summary of the latest ATR update now. |
 | **ATR: link player to AoE4World** | Fixes a wrong AoE4World match by pasting the player's AoE4World profile link. Leave the link empty to go back to automatic matching. |
+| **ATR: load bundled data (testing)** | Loads the copy of the sheet saved with `npm run snapshot`, for use before `docs.google.com` is approved. |
+
+In the app's settings for the subreddit, **"Post a summary automatically each time the ATR sheet is updated"** turns on the automatic update post (off by default). It never posts on the first sync after install, and posts at most once per sheet update.
 
 AoE4World profiles are matched by name automatically (team tags like `M8.` are ignored, profiles linked to Liquipedia are preferred). The player page says whether a profile was matched automatically or set by the mods.
 
