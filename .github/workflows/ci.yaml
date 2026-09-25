@@ -19,7 +19,9 @@ jobs:
         run: npx tsc --build --pretty false
       - name: Lint
         if: always()
-        run: npm run lint
+        run: |
+          npx eslint 'src/**/*.{ts,tsx}' -f json -o eslint.json || true
+          node -e "const r=require('./eslint.json');let n=0;for(const f of r)for(const m of f.messages){n++;console.log('::error file='+f.filePath.replace(process.cwd()+'/','')+',line='+(m.line||1)+'::'+(m.ruleId||'fatal')+': '+m.message.replace(/\n/g,' '))}process.exit(n?1:0)"
       - name: Unit tests
         if: always()
         run: npm run test:unit
