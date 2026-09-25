@@ -1,11 +1,11 @@
 import { Hono, type Context } from 'hono';
 import {
-  computeStats,
   headToHead,
   nameKey,
   unpackMatch,
   type Match,
   type PackedMatch,
+  type TournamentSummary,
 } from '../../shared/atr';
 import type {
   Aoe4WorldResponse,
@@ -14,13 +14,20 @@ import type {
   H2HResponse,
   PlayerResponse,
   TopResponse,
+  TournamentResponse,
+  TournamentsResponse,
 } from '../../shared/api';
 import { getAoe4WorldProfile } from '../core/aoe4world';
-import { readBoard, readMatches, readSyncStatus, readTop10 } from '../core/sync';
+import {
+  readBoard,
+  readMatches,
+  readSyncStatus,
+  readTop10,
+  readTournament,
+  readTournamentList,
+} from '../core/sync';
 
 export const api = new Hono();
-
-const today = (): string => new Date().toISOString().slice(0, 10);
 
 const notSynced = (c: Context) =>
   c.json<ErrorResponse>({ status: 'error', message: 'The ranking has not been synced yet. A moderator can run "Sync ATR data now".' }, 503);
@@ -50,16 +57,26 @@ api.get('/top', async (c) => {
 api.get('/player', async (c) => {
   const name = (c.req.query('name') ?? '').trim();
   if (!name) return c.json<ErrorResponse>({ status: 'error', message: 'name is required' }, 400);
-  const [board, matches, top10] = await Promise.all([readBoard(), loadMatches(name), readTop10()]);
+  const [board, raw, top10] = await Promise.all([readBoard(), readMatches(nameKey(name)), readTop10()]);
   const row = board?.rows.find((r) => nameKey(r.name) === nameKey(name)) ?? null;
+  const matches = raw ? (JSON.parse(raw) as PackedMatch[]) : [];
   if (!row && matches.length === 0) {
     return c.json<ErrorResponse>({ status: 'error', message: `No player called "${name}" in the ATR` }, 404);
   }
-  const stats = computeStats(matches, {
-    today: today(),
-    top10: top10.filter((n) => nameKey(n) !== nameKey(name)),
-  });
-  return c.json<PlayerResponse>({ row, name: row?.name ?? name, stats });
+  return c.json<PlayerResponse>({ row, name: row?.name ?? name, matches, top10 });
+});
+
+api.get('/tournaments', async (c) => {
+  const raw = await readTournamentList();
+  if (!raw) return notSynced(c);
+  return c.json<TournamentsResponse>({ tournaments: JSON.parse(raw) as TournamentSummary[] });
+});
+
+api.get('/tournament', async (c) => {
+  const name = c.req.query('name') ?? '';
+  const raw = name ? await readTournament(name) : null;
+  if (!raw) return c.json<ErrorResponse>({ status: 'error', message: `No tournament called "${name}" in the ATR` }, 404);
+  return c.json<TournamentResponse>(JSON.parse(raw) as TournamentResponse);
 });
 
 api.get('/h2h', async (c) => {

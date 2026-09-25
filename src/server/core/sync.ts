@@ -1,7 +1,14 @@
 import { gunzipSync } from 'node:zlib';
-import { redis } from '@devvit/web/server';
+import { context, reddit, redis, settings } from '@devvit/web/server';
 import {
   buildBoard,
+  buildDigest,
+  buildTournaments,
+  addDays,
+  findUpsets,
+  nameKey,
+  summarize,
+  type Digest,
   packMatch,
   parseCsv,
   parseEloSheet,
@@ -12,7 +19,13 @@ import type { SyncStatus } from '../../shared/api';
 import {
   ELO_TAB,
   KEY_BOARD,
+  KEY_DIGEST,
+  KEY_LAST_POSTED_DATE,
+  KEY_LAST_SHEET_DATE,
   KEY_MATCHES_POINTER,
+  KEY_RANKING_POST,
+  KEY_TOURNAMENT_LIST,
+  tournamentsKey,
   KEY_SYNC_STATUS,
   KEY_TOP10,
   TRDB_TAB,
@@ -101,6 +114,31 @@ async function storeData(eloRows: string[][], trdbRows: string[][], label: strin
   }
   if (chunkBytes > 0) await redis.hSet(version, chunk);
 
+  // Canonical spelling of each player (TRDB sometimes changes capitalisation).
+  const playerNames = new Map<string, string>();
+  for (const r of elo.rows) playerNames.set(nameKey(r.name), r.name);
+  for (const list of matches.values()) {
+    for (const m of list) if (!playerNames.has(nameKey(m.opponent))) playerNames.set(nameKey(m.opponent), m.opponent);
+  }
+
+  const tournaments = buildTournaments(matches, playerNames);
+  chunk = {};
+  chunkBytes = 0;
+  for (const [name, detail] of tournaments) {
+    const value = JSON.stringify(detail);
+    if (chunkBytes + value.length > MAX_CHUNK_BYTES && chunkBytes > 0) {
+      await redis.hSet(tournamentsKey(version), chunk);
+      chunk = {};
+      chunkBytes = 0;
+    }
+    chunk[name] = value;
+    chunkBytes += value.length + name.length;
+  }
+  if (chunkBytes > 0) await redis.hSet(tournamentsKey(version), chunk);
+  const tournamentList = [...tournaments.values()]
+    .map(summarize)
+    .sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : 0));
+
   const board: StoredBoard = {
     sheetDate: elo.sheetDate,
     syncedAt: startedAt,
@@ -113,8 +151,20 @@ async function storeData(eloRows: string[][], trdbRows: string[][], label: strin
   const previous = await redis.get(KEY_MATCHES_POINTER);
   await redis.set(KEY_BOARD, JSON.stringify(board));
   await redis.set(KEY_TOP10, JSON.stringify(top10));
+  await redis.set(KEY_TOURNAMENT_LIST, JSON.stringify(tournamentList));
   await redis.set(KEY_MATCHES_POINTER, version);
-  if (previous && previous !== version) await redis.del(previous);
+  if (previous && previous !== version) await redis.del(previous, tournamentsKey(previous));
+
+  // Summary of this ATR update, for the automatic post. Upsets count from the previous update.
+  const lastSheetDate = await redis.get(KEY_LAST_SHEET_DATE);
+  if (elo.sheetDate && elo.sheetDate !== lastSheetDate) {
+    const since = lastSheetDate && lastSheetDate < elo.sheetDate ? lastSheetDate : addDays(elo.sheetDate, -7);
+    const digest = buildDigest(board.rows, elo.sheetDate, findUpsets(matches, playerNames, since), await rankingPostUrl());
+    await redis.set(KEY_DIGEST, JSON.stringify(digest));
+    await redis.set(KEY_LAST_SHEET_DATE, elo.sheetDate);
+    // Never post on the very first sync after install: that's not an update, just the current state.
+    if (lastSheetDate && (await settings.get<boolean>('autoPostUpdates'))) await postDigest();
+  }
 
   const status: SyncStatus = {
     ok: true,
@@ -144,4 +194,37 @@ export async function readMatches(playerKey: string): Promise<string | null> {
   const pointer = await redis.get(KEY_MATCHES_POINTER);
   if (!pointer) return null;
   return (await redis.hGet(pointer, playerKey)) ?? null;
+}
+
+async function rankingPostUrl(): Promise<string | null> {
+  return (await redis.get(KEY_RANKING_POST)) ?? null;
+}
+
+export async function readDigest(): Promise<Digest | null> {
+  const raw = await redis.get(KEY_DIGEST);
+  return raw ? (JSON.parse(raw) as Digest) : null;
+}
+
+/** Posts the summary of the latest ATR update, once per sheet date. Returns the post URL. */
+export async function postDigest(force = false): Promise<string | null> {
+  const digest = await readDigest();
+  if (!digest) return null;
+  if (!force && (await redis.get(KEY_LAST_POSTED_DATE)) === digest.sheetDate) return null;
+  const post = await reddit.submitPost({
+    subredditName: context.subredditName!,
+    title: digest.title,
+    text: digest.text,
+  });
+  await redis.set(KEY_LAST_POSTED_DATE, digest.sheetDate);
+  return `https://www.reddit.com/r/${context.subredditName}/comments/${post.id.replace(/^t3_/, '')}`;
+}
+
+export async function readTournamentList(): Promise<string | null> {
+  return (await redis.get(KEY_TOURNAMENT_LIST)) ?? null;
+}
+
+export async function readTournament(name: string): Promise<string | null> {
+  const pointer = await redis.get(KEY_MATCHES_POINTER);
+  if (!pointer) return null;
+  return (await redis.hGet(tournamentsKey(pointer), name)) ?? null;
 }

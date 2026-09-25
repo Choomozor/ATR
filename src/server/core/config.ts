@@ -19,3 +19,10 @@ export const KEY_MATCHES_POINTER = 'atr:matches:current';
 export const KEY_SYNC_STATUS = 'atr:sync:last';
 export const KEY_AOE4WORLD_LINKS = 'aoe4world:links';
 export const aoe4worldCacheKey = (name: string): string => `aoe4world:cache:${name}`;
+export const KEY_TOURNAMENT_LIST = 'atr:tournaments:list';
+export const KEY_DIGEST = 'atr:digest';
+export const KEY_LAST_SHEET_DATE = 'atr:sheet-date:last';
+export const KEY_LAST_POSTED_DATE = 'atr:sheet-date:posted';
+export const KEY_RANKING_POST = 'atr:ranking-post';
+/** Tournament details live next to the match history of the same sync. */
+export const tournamentsKey = (matchesVersion: string): string => `${matchesVersion}:t`;

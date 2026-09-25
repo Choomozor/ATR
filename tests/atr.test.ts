@@ -11,6 +11,12 @@ import {
   packMatch,
   unpackMatch,
   serialToDate,
+  ratingHistory,
+  winProbability,
+  buildTournaments,
+  nationRanking,
+  findUpsets,
+  buildDigest,
 } from '../src/shared/atr.ts';
 
 // Real rows copied from the ATR sheet (Tournament ELO + TRDB), 2026-09-25.
@@ -136,4 +142,60 @@ test('pickAoe4WorldProfile strips team tags and prefers Liquipedia-linked profil
   assert.equal(pickAoe4WorldProfile(players, 'MarineLorD')?.profile_id, 3);
   assert.equal(pickAoe4WorldProfile([{ name: 'Msn.dk', profile_id: 9 }], 'Msn.dk')?.profile_id, 9);
   assert.equal(pickAoe4WorldProfile([{ name: 'Someone', profile_id: 4 }], 'MarineLorD'), null);
+});
+
+test('ratingHistory keeps the last rating of each day', () => {
+  const m = parseTrdb(parseCsv(TRDB)).get('marinelord')!;
+  const h = ratingHistory(m);
+  assert.deepEqual(
+    h.map((p) => p.date),
+    ['2026-05-03', '2026-06-28', '2026-09-19', '2026-09-20']
+  );
+  assert.equal(h[0]!.rating, 2357.6);
+});
+
+test('winProbability follows the Elo curve', () => {
+  assert.equal(winProbability(2000, 2000), 0.5);
+  assert.ok(Math.abs(winProbability(2400, 2000) - 0.909) < 0.001);
+});
+
+test('buildTournaments keeps one row per series and totals Elo per player', () => {
+  const byPlayer = parseTrdb(parseCsv(TRDB));
+  const names = new Map([...byPlayer.keys()].map((k) => [k, k]));
+  names.set('marinelord', 'MarineLorD');
+  names.set('vortix', 'VortiX');
+  names.set('anotand', 'Anotand');
+  const t = buildTournaments(byPlayer, names);
+  const egc = t.get('EGC Masters Fall - Season 2: Playoffs')!;
+  assert.equal(egc.series, 2);
+  assert.equal(egc.players, 3);
+  assert.equal(egc.matches[0]!.date, '2026-09-20');
+  assert.equal(egc.movers[0]!.name, 'MarineLorD');
+  assert.equal(egc.movers[0]!.change, 49);
+  assert.equal(t.get('Epohers World Cup 2')!.series, 2);
+});
+
+test('nationRanking averages the best three active players', () => {
+  const board = buildBoard(parseEloSheet(parseCsv(ELO)), new Map());
+  const n = nationRanking(board, 3);
+  assert.equal(n[0]!.country, 'France');
+  assert.equal(n[0]!.score, Math.round((2378.4 + 1000 + 1000) / 3));
+  assert.equal(n.find((x) => x.country === 'China'), undefined); // CsOH is inactive
+});
+
+test('findUpsets and buildDigest describe an update', () => {
+  const trdb = `Date,Tournament,Target,Opponent,Target TR,Opponent TR,Target Score,Opponent Score,Winner,Tier,Multiplier,New TR rating,Rating Change
+2026-09-10,Cup,Low,High,1500,2100,2,1,1,B-Tier,0.85,1540,40
+2026-09-10,Cup,High,Low,2100,1500,1,2,0,B-Tier,0.85,2060,-40
+2026-08-01,Old Cup,Low,High,1500,2200,2,0,1,B-Tier,0.85,1550,50`;
+  const byPlayer = parseTrdb(parseCsv(trdb));
+  const upsets = findUpsets(byPlayer, new Map([['low', 'Low'], ['high', 'High']]), '2026-09-01');
+  assert.equal(upsets.length, 1);
+  assert.equal(upsets[0]!.winner, 'Low');
+  const board = buildBoard(parseEloSheet(parseCsv(ELO)), new Map());
+  const d = buildDigest(board, '2026-09-20', upsets, 'https://example.com/post');
+  assert.equal(d.title, 'ATR Tournament Elo update: 20 Sep 2026');
+  assert.match(d.text, /\| 1 \| MarineLorD \| 2378 \| \+51 \|/);
+  assert.match(d.text, /\*\*Low\*\* \(1500\) beat \*\*High\*\* \(2100\) 2–1 in Cup/);
+  assert.match(d.text, /example\.com\/post/);
 });

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import { context, scheduler } from '@devvit/web/server';
 import { createPost } from '../core/post';
-import { loadSample } from '../core/sync';
+import { loadSample, postDigest, readDigest } from '../core/sync';
 
 export const menu = new Hono();
 
@@ -53,4 +53,16 @@ menu.post('/load-sample', async (c) => {
   return c.json<UiResponse>({
     showToast: status.ok ? `Sample loaded: ${status.message}` : `Could not load the sample: ${status.message}`,
   });
+});
+
+menu.post('/post-update', async (c) => {
+  const digest = await readDigest();
+  if (!digest) return c.json<UiResponse>({ showToast: 'No ATR update summary yet: sync the data first.' });
+  try {
+    const url = await postDigest(true);
+    return url ? c.json<UiResponse>({ navigateTo: url }) : c.json<UiResponse>({ showToast: 'Nothing to post' });
+  } catch (error) {
+    console.error(`Could not post the update: ${error}`);
+    return c.json<UiResponse>({ showToast: 'Could not post the update summary' }, 400);
+  }
 });

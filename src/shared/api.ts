@@ -1,4 +1,4 @@
-import type { BoardRow, HeadToHead, PlayerStats } from './atr';
+import type { BoardRow, HeadToHead, PackedMatch, TournamentDetail, TournamentSummary } from './atr';
 
 export type SyncStatus = {
   ok: boolean;
@@ -22,8 +22,14 @@ export type TopResponse = {
 export type PlayerResponse = {
   row: BoardRow | null;
   name: string;
-  stats: PlayerStats;
+  /** Every series of the player, oldest first (see unpackMatch). */
+  matches: PackedMatch[];
+  /** Current active top 10, for the "vs top 10" stat. */
+  top10: string[];
 };
+
+export type TournamentsResponse = { tournaments: TournamentSummary[] };
+export type TournamentResponse = TournamentDetail;
 
 export type H2HResponse = HeadToHead;
 

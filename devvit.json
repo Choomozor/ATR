@@ -44,6 +44,13 @@
         "endpoint": "/internal/menu/sync"
       },
       {
+        "label": "ATR: post update summary",
+        "description": "Post the summary of the latest ATR update (top 10, risers, new top 32, upset)",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/post-update"
+      },
+      {
         "label": "ATR: link player to AoE4World",
         "description": "Fix a wrong AoE4World profile match",
         "location": "subreddit",
@@ -83,5 +90,14 @@
   },
   "dev": {
     "subreddit": "aoe4___leaderboar_dev"
+  },
+  "settings": {
+    "subreddit": {
+      "autoPostUpdates": {
+        "type": "boolean",
+        "label": "Post a summary automatically each time the ATR sheet is updated",
+        "defaultValue": false
+      }
+    }
   }
 }

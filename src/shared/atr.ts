@@ -19,6 +19,8 @@ export type BoardRow = {
   /** All-time series record from TRDB. */
   wins: number;
   losses: number;
+  /** Last 10 series results, oldest first ("WWLWD…"). */
+  form: string;
 };
 
 export type MatchResult = 'W' | 'L' | 'D';
@@ -33,6 +35,9 @@ export type Match = {
   tier: string;
   ratingAfter: number;
   ratingChange: number;
+  /** Both players' Tournament Elo before the series (0 when unknown). */
+  ratingBefore: number;
+  opponentRatingBefore: number;
 };
 
 export type WinLoss = { wins: number; losses: number; draws: number; winRate: number | null };
@@ -141,7 +146,7 @@ export function addDays(isoDate: string, days: number): string {
 
 // ---------------------------------------------------------------- Tournament ELO tab
 
-export type EloSheet = { sheetDate: string; rows: Omit<BoardRow, 'wins' | 'losses'>[] };
+export type EloSheet = { sheetDate: string; rows: Omit<BoardRow, 'wins' | 'losses' | 'form'>[] };
 
 /**
  * Tournament ELO tab layout (0-based columns):
@@ -206,6 +211,8 @@ export function parseTrdb(rows: string[][]): Map<string, Match[]> {
     tier: col('tier'),
     ratingAfter: col('new tr rating'),
     ratingChange: col('rating change'),
+    ratingBefore: col('target tr'),
+    opponentRatingBefore: col('opponent tr'),
   };
   if (idx.target < 0 || idx.opponent < 0 || idx.date < 0) {
     throw new Error('TRDB header not recognised (expected Date, Target, Opponent… columns)');
@@ -228,6 +235,8 @@ export function parseTrdb(rows: string[][]): Map<string, Match[]> {
       tier: (r[idx.tier] ?? '').trim(),
       ratingAfter: round1(num(r[idx.ratingAfter])),
       ratingChange: round1(num(r[idx.ratingChange])),
+      ratingBefore: idx.ratingBefore < 0 ? 0 : round1(num(r[idx.ratingBefore])),
+      opponentRatingBefore: idx.opponentRatingBefore < 0 ? 0 : round1(num(r[idx.opponentRatingBefore])),
     };
     const key = nameKey(target);
     const list = byPlayer.get(key);
@@ -238,7 +247,19 @@ export function parseTrdb(rows: string[][]): Map<string, Match[]> {
 }
 
 // Compact storage format (arrays are ~40% smaller than objects in Redis).
-export type PackedMatch = [string, string, string, number, number, MatchResult, string, number, number];
+export type PackedMatch = [
+  string,
+  string,
+  string,
+  number,
+  number,
+  MatchResult,
+  string,
+  number,
+  number,
+  number,
+  number,
+];
 
 export const packMatch = (m: Match): PackedMatch => [
   m.date,
@@ -250,6 +271,8 @@ export const packMatch = (m: Match): PackedMatch => [
   m.tier,
   m.ratingAfter,
   m.ratingChange,
+  m.ratingBefore,
+  m.opponentRatingBefore,
 ];
 
 export const unpackMatch = (p: PackedMatch): Match => ({
@@ -262,6 +285,8 @@ export const unpackMatch = (p: PackedMatch): Match => ({
   tier: p[6],
   ratingAfter: p[7],
   ratingChange: p[8],
+  ratingBefore: p[9] ?? 0,
+  opponentRatingBefore: p[10] ?? 0,
 });
 
 // ---------------------------------------------------------------- board
@@ -270,11 +295,16 @@ export function buildBoard(elo: EloSheet, matches: Map<string, Match[]>): BoardR
   return elo.rows.map((row) => {
     let wins = 0;
     let losses = 0;
-    for (const m of matches.get(nameKey(row.name)) ?? []) {
+    const list = matches.get(nameKey(row.name)) ?? [];
+    for (const m of list) {
       if (m.result === 'W') wins++;
       else if (m.result === 'L') losses++;
     }
-    return { ...row, wins, losses };
+    const form = list
+      .slice(-10)
+      .map((m) => m.result)
+      .join('');
+    return { ...row, wins, losses, form };
   });
 }
 
@@ -405,4 +435,255 @@ export function pickAoe4WorldProfile<T extends Aoe4WorldPlayer>(players: T[], at
     if (!best || score > best.score) best = { p, score };
   }
   return best?.p ?? null;
+}
+
+// ---------------------------------------------------------------- Elo history & predictions
+
+export type RatingPoint = { date: string; rating: number; tournament: string };
+
+/** One point per day (the rating after the last series that day), oldest first. */
+export function ratingHistory(matches: Match[]): RatingPoint[] {
+  const out: RatingPoint[] = [];
+  for (const m of matches) {
+    if (!(m.ratingAfter > 0)) continue;
+    const last = out[out.length - 1];
+    const point = { date: m.date, rating: m.ratingAfter, tournament: m.tournament };
+    if (last && last.date === m.date) out[out.length - 1] = point;
+    else out.push(point);
+  }
+  return out;
+}
+
+/** Standard Elo expectation: the chance that a player rated `a` beats one rated `b`. */
+export const winProbability = (a: number, b: number): number => 1 / (1 + Math.pow(10, (b - a) / 400));
+
+export const filterByPeriod = (matches: Match[], from: string | null): Match[] =>
+  from ? matches.filter((m) => m.date >= from) : matches;
+
+// ---------------------------------------------------------------- tournaments
+
+export type TournamentSeries = {
+  date: string;
+  a: string;
+  b: string;
+  scoreA: number;
+  scoreB: number;
+  winner: 'a' | 'b' | 'draw';
+  ratingA: number;
+  ratingB: number;
+  changeA: number;
+  changeB: number;
+};
+
+export type TournamentSummary = {
+  name: string;
+  tier: string;
+  start: string;
+  end: string;
+  series: number;
+  players: number;
+};
+
+export type TournamentDetail = TournamentSummary & {
+  /** Newest first. */
+  matches: TournamentSeries[];
+  /** Tournament Elo won or lost across the event, best first. */
+  movers: { name: string; change: number; wins: number; losses: number }[];
+};
+
+/**
+ * TRDB lists every series twice (once per player). Keep one row per series: the one seen from
+ * the player whose name sorts first, and pair it with the mirror row for the opponent's numbers.
+ */
+export function buildTournaments(byPlayer: Map<string, Match[]>, playerNames: Map<string, string>): Map<string, TournamentDetail> {
+  const events = new Map<string, TournamentDetail & { names: Set<string>; moverMap: Map<string, TournamentDetail['movers'][number]> }>();
+  for (const [key, list] of byPlayer) {
+    const player = playerNames.get(key) ?? key;
+    for (const m of list) {
+      let ev = events.get(m.tournament);
+      if (!ev) {
+        ev = {
+          name: m.tournament,
+          tier: m.tier,
+          start: m.date,
+          end: m.date,
+          series: 0,
+          players: 0,
+          matches: [],
+          movers: [],
+          names: new Set(),
+          moverMap: new Map(),
+        };
+        events.set(m.tournament, ev);
+      }
+      if (m.date < ev.start) ev.start = m.date;
+      if (m.date > ev.end) ev.end = m.date;
+      ev.names.add(key);
+      const mover = ev.moverMap.get(key) ?? { name: player, change: 0, wins: 0, losses: 0 };
+      mover.change += m.ratingChange;
+      if (m.result === 'W') mover.wins++;
+      if (m.result === 'L') mover.losses++;
+      ev.moverMap.set(key, mover);
+
+      const oppKey = nameKey(m.opponent);
+      if (key < oppKey || !byPlayer.has(oppKey)) {
+        ev.matches.push({
+          date: m.date,
+          a: player,
+          b: m.opponent,
+          scoreA: m.score,
+          scoreB: m.opponentScore,
+          winner: m.result === 'W' ? 'a' : m.result === 'L' ? 'b' : 'draw',
+          ratingA: m.ratingBefore,
+          ratingB: m.opponentRatingBefore,
+          changeA: m.ratingChange,
+          changeB: -m.ratingChange,
+        });
+      }
+    }
+  }
+  const out = new Map<string, TournamentDetail>();
+  for (const ev of events.values()) {
+    const { names, moverMap, ...rest } = ev;
+    rest.matches.sort((x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0));
+    rest.series = rest.matches.length;
+    rest.players = names.size;
+    rest.movers = [...moverMap.values()]
+      .map((mv) => ({ ...mv, change: Math.round(mv.change * 10) / 10 }))
+      .sort((x, y) => y.change - x.change);
+    out.set(rest.name, rest);
+  }
+  return out;
+}
+
+export const summarize = (t: TournamentDetail): TournamentSummary => ({
+  name: t.name,
+  tier: t.tier,
+  start: t.start,
+  end: t.end,
+  series: t.series,
+  players: t.players,
+});
+
+// ---------------------------------------------------------------- nations
+
+export type Nation = {
+  country: string;
+  /** Average Tournament Elo of the nation's best `size` active players. */
+  score: number;
+  activePlayers: number;
+  top: BoardRow[];
+};
+
+export function nationRanking(rows: BoardRow[], size = 3): Nation[] {
+  const byCountry = new Map<string, BoardRow[]>();
+  for (const r of rows) {
+    if (!r.active || !r.country) continue;
+    const list = byCountry.get(r.country);
+    if (list) list.push(r);
+    else byCountry.set(r.country, [r]);
+  }
+  return [...byCountry.entries()]
+    .map(([country, list]) => {
+      const sorted = list.sort((a, b) => b.elo - a.elo);
+      const top = sorted.slice(0, size);
+      // Nations with fewer players than `size` count the missing slots as 1000 (the starting Elo).
+      const total = top.reduce((sum, r) => sum + r.elo, 0) + 1000 * (size - top.length);
+      return { country, score: Math.round(total / size), activePlayers: list.length, top: sorted.slice(0, 5) };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+// ---------------------------------------------------------------- update digest
+
+export type Upset = {
+  date: string;
+  tournament: string;
+  winner: string;
+  loser: string;
+  winnerRating: number;
+  loserRating: number;
+  score: string;
+};
+
+/** Wins against a higher-rated opponent since `since` (exclusive), biggest rating gap first. */
+export function findUpsets(byPlayer: Map<string, Match[]>, playerNames: Map<string, string>, since: string): Upset[] {
+  const out: Upset[] = [];
+  for (const [key, list] of byPlayer) {
+    for (const m of list) {
+      if (m.date <= since || m.result !== 'W' || !m.ratingBefore || !m.opponentRatingBefore) continue;
+      if (m.opponentRatingBefore <= m.ratingBefore) continue;
+      out.push({
+        date: m.date,
+        tournament: m.tournament,
+        winner: playerNames.get(key) ?? key,
+        loser: m.opponent,
+        winnerRating: m.ratingBefore,
+        loserRating: m.opponentRatingBefore,
+        score: `${m.score}–${m.opponentScore}`,
+      });
+    }
+  }
+  return out.sort((a, b) => b.loserRating - b.winnerRating - (a.loserRating - a.winnerRating));
+}
+
+export type Digest = { sheetDate: string; title: string; text: string };
+
+const fmtDate = (iso: string): string => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const [y, m, d] = iso.split('-');
+  return y && m && d ? `${Number(d)} ${months[Number(m) - 1] ?? ''} ${y}` : iso;
+};
+
+const sign = (n: number): string => (n > 0 ? `+${Math.round(n)}` : `${Math.round(n)}`);
+
+/** Markdown summary of an ATR update, for the automatic subreddit post. */
+export function buildDigest(rows: BoardRow[], sheetDate: string, upsets: Upset[], rankingPostUrl: string | null): Digest {
+  const active = rows.filter((r) => r.active && r.rank !== null);
+  const lines: string[] = [];
+  lines.push(`The AoE4 Esports Tournament Ranking was updated on **${fmtDate(sheetDate)}**.`, '');
+
+  lines.push('### Top 10', '', '| # | Player | Elo | Change |', '|--:|:--|--:|--:|');
+  for (const r of active.slice(0, 10)) {
+    const move = r.rankChange > 0 ? ` (▲${r.rankChange})` : r.rankChange < 0 ? ` (▼${-r.rankChange})` : '';
+    lines.push(`| ${r.rank}${move} | ${r.name} | ${Math.round(r.elo)} | ${sign(r.eloChange)} |`);
+  }
+
+  const top100 = active.slice(0, 100);
+  const risers = top100.filter((r) => r.eloChange > 0).sort((a, b) => b.eloChange - a.eloChange).slice(0, 5);
+  const fallers = top100.filter((r) => r.eloChange < 0).sort((a, b) => a.eloChange - b.eloChange).slice(0, 5);
+  if (risers.length) {
+    lines.push('', '### Biggest risers (top 100)', '');
+    for (const r of risers) lines.push(`- **${r.name}** ${sign(r.eloChange)} Elo, now #${r.rank}`);
+  }
+  if (fallers.length) {
+    lines.push('', '### Biggest drops (top 100)', '');
+    for (const r of fallers) lines.push(`- **${r.name}** ${sign(r.eloChange)} Elo, now #${r.rank}`);
+  }
+
+  const newTop32 = active.filter((r) => (r.rank ?? 99) <= 32 && (r.rank ?? 0) + r.rankChange > 32);
+  if (newTop32.length) {
+    lines.push('', '### New in the top 32', '');
+    for (const r of newTop32) lines.push(`- **${r.name}** enters at #${r.rank} (▲${r.rankChange})`);
+  }
+
+  const upset = upsets[0];
+  if (upset) {
+    lines.push(
+      '',
+      '### Upset of the update',
+      '',
+      `**${upset.winner}** (${Math.round(upset.winnerRating)}) beat **${upset.loser}** (${Math.round(upset.loserRating)}) ${upset.score} in ${upset.tournament}.`
+    );
+  }
+
+  lines.push('', '---', '');
+  lines.push(
+    rankingPostUrl
+      ? `Full ranking, player stats and head-to-heads: [open the interactive ATR post](${rankingPostUrl}).`
+      : 'Full ranking, player stats and head-to-heads are in the pinned ATR post.'
+  );
+  lines.push('', '^(Posted automatically by the ATR app from the public ATR sheet.)');
+
+  return { sheetDate, title: `ATR Tournament Elo update: ${fmtDate(sheetDate)}`, text: lines.join('\n') };
 }
