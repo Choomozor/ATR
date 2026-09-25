@@ -4,6 +4,7 @@ import { requestExpandedMode } from '@devvit/web/client';
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { TopResponse } from '../shared/api';
+import { Flag } from './Flag';
 import { getJson, shortDate, signed } from './format';
 
 export const Splash = () => {
@@ -42,8 +43,10 @@ export const Splash = () => {
             <span className="w-6 text-right text-xs font-bold tabular-nums text-amber-700 dark:text-amber-400">
               {r.rank}
             </span>
+            <span className="flex w-4 shrink-0 justify-center">
+              <Flag country={r.country} />
+            </span>
             <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
-            <span className="hidden w-24 truncate text-right text-xs text-stone-500 sm:block">{r.country}</span>
             <span className="w-12 text-right font-mono tabular-nums">{Math.round(r.elo)}</span>
             <span
               className={`w-9 text-right text-xs tabular-nums ${

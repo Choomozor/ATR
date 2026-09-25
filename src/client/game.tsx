@@ -5,6 +5,7 @@ import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client';
 import type { BoardRow, Match } from '../shared/atr';
 import type { Aoe4WorldResponse, BoardResponse, H2HResponse, PlayerResponse } from '../shared/api';
+import { Flag } from './Flag';
 import { getJson, pct, shortDate } from './format';
 
 const PAGE = 100;
@@ -213,7 +214,8 @@ const PlayerView = ({
         <>
           <header className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-stone-500">
+              <p className="flex items-center gap-1.5 text-xs text-stone-500">
+                {row?.country && <Flag country={row.country} />}
                 {[row?.country, row?.subRegion].filter(Boolean).join(' · ') || 'Country unknown'}
               </p>
               <h2 className="truncate text-2xl font-bold">{data.name}</h2>
@@ -343,10 +345,12 @@ const RankingRow = ({ r, onClick }: { r: BoardRow; onClick: () => void }) => {
           {r.rank ?? '–'}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{r.name}</span>
+          <span className="flex items-center gap-1.5 font-semibold">
+            <Flag country={r.country} />
+            <span className="truncate">{r.name}</span>
+          </span>
           <span className="block truncate text-xs text-stone-500">
-            {r.country || 'Unknown'}
-            {played > 0 && ` · ${pct(r.wins / played)} of ${played} series`}
+            {played > 0 ? `${pct(r.wins / played)} of ${played} series won` : 'No series recorded'}
           </span>
         </span>
         <span className="w-10 shrink-0 text-right text-xs tabular-nums">

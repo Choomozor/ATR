@@ -27,4 +27,7 @@ jobs:
         run: npm run test:unit
       - name: Build
         if: always()
-        run: npm run build
+        run: |
+          npm run build
+          echo "::notice::flag files in build: $(ls dist/client/assets | grep -c '\.svg$' || true)"
+          echo "::notice::client assets: $(du -sh dist/client | cut -f1), server bundle: $(du -sh dist/server | cut -f1)"
