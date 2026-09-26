@@ -197,6 +197,17 @@ export const H2HBox = ({
       {rowA && rowB && (
         <WinChance a={rowA.name} b={rowB.name} eloA={rowA.elo} eloB={rowB.elo} matches={h.matches} />
       )}
+      {!inCompare && (
+        <button
+          onClick={() => nav.compare(player, h.opponent)}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+        >
+          <span aria-hidden>⇆</span>
+          <span className="truncate">
+            {player} vs {h.opponent}: side by side
+          </span>
+        </button>
+      )}
       {h.matches.length === 0 ? (
         <p className="text-sm text-stone-500">
           No tournament series between {player} and {opponent} in the ATR.
@@ -219,14 +230,6 @@ export const H2HBox = ({
           </div>
           <MatchList matches={h.matches} nav={nav} />
         </>
-      )}
-      {!inCompare && (
-        <button
-          onClick={() => nav.compare(player, h.opponent)}
-          className="mt-3 w-full rounded-full py-2 text-sm font-semibold text-amber-700 ring-1 ring-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-stone-900"
-        >
-          Side-by-side comparison →
-        </button>
       )}
     </>
   );
@@ -313,12 +316,20 @@ export const PlayerView = ({
                   <Delta value={row.eloChange} /> <span className="text-stone-500">since last update</span>
                 </p>
               )}
-              <button
-                onClick={share}
-                className="mt-1 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400"
-              >
-                Share ↗
-              </button>
+              <p className="mt-1 flex justify-end gap-3 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                <button
+                  onClick={() => {
+                    document.getElementById('h2h')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    document.getElementById('h2h-input')?.focus({ preventScroll: true });
+                  }}
+                  className="hover:underline"
+                >
+                  ⇆ Compare
+                </button>
+                <button onClick={share} className="hover:underline">
+                  Share ↗
+                </button>
+              </p>
             </div>
           </header>
 
@@ -420,7 +431,10 @@ export const PlayerView = ({
           </Section>
 
           <div id="h2h" />
-          <Section title="Head-to-head">
+          <Section
+            title="Head-to-head"
+            aside={<span className="text-xs text-stone-500">pick a player, then see them side by side</span>}
+          >
             <form
               className="mb-3 flex gap-2"
               onSubmit={(e) => {
@@ -432,6 +446,7 @@ export const PlayerView = ({
                 list="atr-players"
                 value={rival}
                 onChange={(e) => setRival(e.target.value)}
+                id="h2h-input"
                 placeholder="Compare with a player…"
                 className="h-9 min-w-0 flex-1 rounded-full bg-white px-3 text-sm ring-1 ring-stone-300 outline-none focus:ring-amber-600 dark:bg-stone-900 dark:ring-stone-700"
               />

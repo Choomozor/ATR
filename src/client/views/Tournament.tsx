@@ -194,10 +194,14 @@ const Highlights = ({ t, nav }: { t: TournamentResponse; nav: Nav }) => {
   }
 
   const numbers = [
-    { label: 'Maps played', value: h.totalMaps },
-    { label: 'Sweeps', value: h.sweeps },
-    { label: 'Deciding maps', value: h.deciders },
-    { label: 'Favourites won', value: h.favouritesWon === null ? '–' : `${Math.round(h.favouritesWon * 100)}%` },
+    { label: 'Maps played', value: h.totalMaps, help: 'Maps played in the whole tournament' },
+    { label: 'Clean sweeps', value: h.sweeps, help: 'Series won without dropping a map (2–0, 3–0, 4–0…)' },
+    { label: 'Deciding maps', value: h.deciders, help: 'Series that went to the last map (2–1, 3–2, 4–3…)' },
+    {
+      label: 'Favourites won',
+      value: h.favouritesWon === null ? '–' : `${Math.round(h.favouritesWon * 100)}%`,
+      help: 'Share of series won by the player with the higher Tournament Elo',
+    },
   ];
 
   return (
@@ -205,12 +209,19 @@ const Highlights = ({ t, nav }: { t: TournamentResponse; nav: Nav }) => {
       {cards.length > 0 && <div className="grid grid-cols-2 gap-2">{cards}</div>}
       <div className="mt-2 grid grid-cols-4 gap-2 text-center">
         {numbers.map((n) => (
-          <div key={n.label} className="rounded-lg bg-white px-1 py-2 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+          <div
+            key={n.label}
+            title={n.help}
+            className="rounded-lg bg-white px-1 py-2 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800"
+          >
             <p className="text-lg font-bold tabular-nums">{n.value}</p>
             <p className="text-[10px] uppercase leading-tight tracking-wide text-stone-500">{n.label}</p>
           </div>
         ))}
       </div>
+      <p className="mt-1.5 text-[11px] text-stone-500">
+        Clean sweep: won without dropping a map. Deciding map: went to the last map.
+      </p>
     </Section>
   );
 };
