@@ -16,7 +16,7 @@ import type { Aoe4WorldResponse, PlayerResponse } from '../../shared/api';
 import { EloChart } from '../EloChart';
 import { Flag } from '../Flag';
 import { getJson, pct, shortDate } from '../format';
-import { BackButton, Chip, Delta, MatchList, Section, Spinner, Tile, type Nav } from '../ui';
+import { BackButton, Chip, Delta, MatchList, Section, Spinner, Tile, WinRate, rateTone, type Nav } from '../ui';
 
 type Period = 'all' | '12m' | 'year';
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -69,7 +69,9 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
         </div>
         <div>
           <p className="text-[11px] uppercase text-stone-500">Win rate</p>
-          <p className="font-bold tabular-nums">{main.soloWinRate !== null ? `${Math.round(main.soloWinRate)}%` : '–'}</p>
+          <p className="font-bold tabular-nums">
+            <WinRate rate={main.soloWinRate === null ? null : main.soloWinRate / 100} />
+          </p>
         </div>
       </div>
       <p className="mt-2 text-[11px] text-stone-500">
@@ -163,7 +165,7 @@ const H2HBox = ({
           <div className="mb-3 flex items-center justify-between rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
             <span className="w-1/3 truncate font-semibold">{player}</span>
             <span className="text-center">
-              <span className="text-2xl font-bold tabular-nums">
+              <span className={`text-2xl font-bold tabular-nums ${rateTone(h.series.winRate)}`}>
                 {h.series.wins} – {h.series.losses}
               </span>
               <span className="block text-xs text-stone-500 tabular-nums">
@@ -294,11 +296,11 @@ export const PlayerView = ({
           </Section>
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Tile label="Series win rate" value={pct(s.series.winRate)} sub={`${s.series.wins}W – ${s.series.losses}L`} />
-            <Tile label="Map win rate" value={pct(s.maps.winRate)} sub={`${s.maps.won} – ${s.maps.lost} maps`} />
+            <Tile label="Series win rate" value={<WinRate rate={s.series.winRate} />} sub={`${s.series.wins}W – ${s.series.losses}L`} />
+            <Tile label="Map win rate" value={<WinRate rate={s.maps.winRate} />} sub={`${s.maps.won} – ${s.maps.lost} maps`} />
             <Tile
               label="vs current top 10"
-              value={pct(s.vsTop10?.winRate)}
+              value={<WinRate rate={s.vsTop10?.winRate} />}
               sub={s.vsTop10 ? `${s.vsTop10.wins}W – ${s.vsTop10.losses}L` : undefined}
             />
             <Tile
@@ -319,9 +321,9 @@ export const PlayerView = ({
           {(s.nemesis || s.bestMatchup) && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               {[
-                { label: 'Nemesis', m: s.nemesis, tone: 'text-rose-600 dark:text-rose-400' },
-                { label: 'Best matchup', m: s.bestMatchup, tone: 'text-emerald-600 dark:text-emerald-400' },
-              ].map(({ label, m, tone }) => (
+                { label: 'Nemesis', m: s.nemesis },
+                { label: 'Best matchup', m: s.bestMatchup },
+              ].map(({ label, m }) => (
                 <button
                   key={label}
                   disabled={!m}
@@ -336,7 +338,7 @@ export const PlayerView = ({
                   <p className="mt-0.5 truncate text-lg font-bold">{m?.name ?? '–'}</p>
                   {m && (
                     <p className="text-xs tabular-nums">
-                      <span className={tone}>{pct(m.winRate)}</span>
+                      <WinRate rate={m.winRate} />
                       <span className="text-stone-500">
                         {' '}
                         · {m.wins}W – {m.losses}L
@@ -354,7 +356,9 @@ export const PlayerView = ({
                 {s.byTier.map((t) => (
                   <div key={t.tier} className="rounded-lg bg-white p-2 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
                     <p className="text-xs font-semibold">{t.tier.replace('-Tier', '')}</p>
-                    <p className="font-bold tabular-nums">{pct(t.winRate)}</p>
+                    <p className="font-bold tabular-nums">
+                      <WinRate rate={t.winRate} />
+                    </p>
                     <p className="text-[11px] text-stone-500 tabular-nums">
                       {t.wins}–{t.losses}
                     </p>
@@ -400,7 +404,10 @@ export const PlayerView = ({
                         : 'bg-white ring-stone-300 hover:ring-amber-600 dark:bg-stone-900 dark:ring-stone-700'
                     }`}
                   >
-                    {r.name} <span className="tabular-nums opacity-70">{r.wins}–{r.losses}</span>
+                    {r.name}{' '}
+                    <span className={`tabular-nums ${compare === r.name ? 'opacity-80' : rateTone(r.wins + r.losses ? r.wins / (r.wins + r.losses) : null)}`}>
+                      {r.wins}–{r.losses}
+                    </span>
                   </button>
                 ))}
               </div>

@@ -25,3 +25,16 @@ export async function getJson<T>(url: string): Promise<T> {
   }
   return body as T;
 }
+
+/** Hand-off from the feed card to the full view: which player page to open first. */
+export const OPEN_PLAYER_KEY = 'atr:open-player';
+
+export const takeOpenPlayer = (): string | null => {
+  try {
+    const name = localStorage.getItem(OPEN_PLAYER_KEY);
+    localStorage.removeItem(OPEN_PLAYER_KEY);
+    return name;
+  } catch {
+    return null;
+  }
+};

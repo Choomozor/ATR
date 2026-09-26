@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Match } from '../shared/atr';
-import { shortDate } from './format';
+import { pct, shortDate } from './format';
 
 export const Delta = ({ value, digits = 0 }: { value: number; digits?: number }) =>
   value === 0 ? (
@@ -41,16 +41,32 @@ export const ResultBadge = ({ r }: { r: Match['result'] }) => (
 );
 
 /** Recent results as dots, oldest on the left. */
+/** Green above 50%, red below, default ink at exactly 50% or with no decided series. */
+export const rateTone = (rate: number | null | undefined): string =>
+  rate === null || rate === undefined || Math.round(rate * 1000) === 500
+    ? ''
+    : rate > 0.5
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-rose-600 dark:text-rose-400';
+
+export const WinRate = ({ rate }: { rate: number | null | undefined }) => (
+  <span className={rateTone(rate)}>{pct(rate)}</span>
+);
+
+/** Recent results as dots, oldest on the left; the latest one is larger and ringed. */
 export const FormDots = ({ form }: { form: string }) => (
-  <span className="flex gap-0.5" title={`Last ${form.length} series: ${form}`}>
-    {[...form].map((r, i) => (
-      <span
-        key={i}
-        className={`h-1.5 w-1.5 rounded-full ${
-          r === 'W' ? 'bg-emerald-500' : r === 'L' ? 'bg-rose-500' : 'bg-stone-400'
-        }`}
-      />
-    ))}
+  <span className="flex items-center gap-0.5" title={`Last ${form.length} series, oldest to latest: ${form}`}>
+    {[...form].map((r, i) => {
+      const latest = i === form.length - 1;
+      return (
+        <span
+          key={i}
+          className={`rounded-full ${latest ? 'ml-0.5 h-2 w-2 ring-1 ring-stone-400 ring-offset-1 ring-offset-stone-50 dark:ring-stone-500 dark:ring-offset-stone-950' : 'h-1.5 w-1.5'} ${
+            r === 'W' ? 'bg-emerald-500' : r === 'L' ? 'bg-rose-500' : 'bg-stone-400'
+          }`}
+        />
+      );
+    })}
   </span>
 );
 

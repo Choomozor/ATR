@@ -6,8 +6,8 @@ import { createRoot } from 'react-dom/client';
 import { nameKey, type BoardRow } from '../shared/atr';
 import type { BoardResponse } from '../shared/api';
 import { Flag } from './Flag';
-import { getJson, pct, shortDate } from './format';
-import { Chip, Delta, FormDots, Spinner, type Nav } from './ui';
+import { getJson, shortDate, takeOpenPlayer } from './format';
+import { Chip, Delta, FormDots, Spinner, WinRate, type Nav } from './ui';
 import { NationsView } from './views/Nations';
 import { PlayerView } from './views/Player';
 import { TournamentView, TournamentsView } from './views/Tournament';
@@ -40,7 +40,13 @@ const RankingRow = ({ r, onClick }: { r: BoardRow; onClick: () => void }) => {
           </span>
           <span className="flex items-center gap-2 text-xs text-stone-500">
             <span className="truncate">
-              {played > 0 ? `${pct(r.wins / played)} of ${played} series won` : 'No series recorded'}
+              {played > 0 ? (
+                <>
+                  <WinRate rate={r.wins / played} /> of {played} series won
+                </>
+              ) : (
+                'No series recorded'
+              )}
             </span>
             {r.form && <FormDots form={r.form.slice(-5)} />}
           </span>
@@ -140,7 +146,10 @@ export const App = () => {
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('ranking');
-  const [stack, setStack] = useState<Page[]>([]);
+  const [stack, setStack] = useState<Page[]>(() => {
+    const player = takeOpenPlayer();
+    return player ? [{ kind: 'player', name: player }] : [];
+  });
 
   useEffect(() => {
     getJson<BoardResponse>('/api/board').then(setBoard, (e: unknown) =>

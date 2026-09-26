@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TournamentSummary } from '../../shared/atr';
 import type { TournamentResponse, TournamentsResponse } from '../../shared/api';
 import { getJson, shortDate } from '../format';
-import { BackButton, Chip, Delta, Section, Spinner, type Nav } from '../ui';
+import { BackButton, Chip, Delta, Section, Spinner, rateTone, type Nav } from '../ui';
 
 const TIER_STYLE: Record<string, string> = {
   'S-Tier': 'bg-amber-600 text-white',
@@ -164,7 +164,7 @@ export const TournamentView = ({
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
                         >
                           <span className="min-w-0 flex-1 truncate font-semibold">{m.name}</span>
-                          <span className="text-xs text-stone-500 tabular-nums">
+                          <span className={`text-xs tabular-nums ${rateTone(m.wins + m.losses ? m.wins / (m.wins + m.losses) : null) || 'text-stone-500'}`}>
                             {m.wins}–{m.losses}
                           </span>
                           <span className="w-12 text-right text-xs tabular-nums">
