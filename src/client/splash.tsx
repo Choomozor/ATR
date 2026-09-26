@@ -29,31 +29,32 @@ export const Splash = () => {
         {data && <span className="shrink-0 text-xs text-stone-500">Updated {shortDate(data.sheetDate)}</span>}
       </header>
 
-      <ol className="mt-2 min-h-0 flex-1 divide-y divide-stone-200 overflow-y-auto dark:divide-stone-800">
-        {error && <li className="py-3 text-sm text-stone-500">{error}</li>}
+      {/* Two columns of 16 so the whole top 32 fits without scrolling inside the feed. */}
+      <ol className="mt-2 grid min-h-0 flex-1 grid-flow-col grid-cols-2 grid-rows-16 gap-x-4 overflow-hidden">
+        {error && <li className="col-span-2 py-3 text-sm text-stone-500">{error}</li>}
         {!data &&
           !error &&
-          Array.from({ length: 8 }, (_, i) => (
-            <li key={i} className="h-7 animate-pulse py-1.5">
-              <div className="h-4 w-2/3 rounded bg-stone-200 dark:bg-stone-800" />
+          Array.from({ length: 32 }, (_, i) => (
+            <li key={i} className="flex animate-pulse items-center">
+              <div className="h-3 w-2/3 rounded bg-stone-200 dark:bg-stone-800" />
             </li>
           ))}
         {data?.rows.map((r) => (
-          <li key={r.name} className="flex items-center gap-2 py-1 text-sm">
-            <span className="w-6 text-right text-xs font-bold tabular-nums text-amber-700 dark:text-amber-400">
+          <li key={r.name} className="flex min-w-0 items-center gap-1.5 text-[13px] leading-5">
+            <span className="w-5 shrink-0 text-right text-[11px] font-bold tabular-nums text-amber-700 dark:text-amber-400">
               {r.rank}
             </span>
             <span className="flex w-4 shrink-0 justify-center">
               <Flag country={r.country} />
             </span>
             <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
-            <span className="w-12 text-right font-mono tabular-nums">{Math.round(r.elo)}</span>
             <span
-              className={`w-9 text-right text-xs tabular-nums ${
-                r.eloChange > 0 ? 'text-emerald-600' : r.eloChange < 0 ? 'text-rose-600' : 'text-stone-400'
+              className={`shrink-0 font-mono text-xs tabular-nums ${
+                r.eloChange > 0 ? 'text-emerald-700 dark:text-emerald-400' : r.eloChange < 0 ? 'text-rose-700 dark:text-rose-400' : ''
               }`}
+              title={r.eloChange ? `${signed(r.eloChange)} since the last update` : undefined}
             >
-              {r.eloChange ? signed(r.eloChange) : ''}
+              {Math.round(r.elo)}
             </span>
           </li>
         ))}
