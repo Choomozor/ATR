@@ -1,4 +1,4 @@
-import { navigateTo, showToast } from '@devvit/web/client';
+import { showToast } from '@devvit/web/client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   addDays,
@@ -20,7 +20,7 @@ import { Flag } from '../Flag';
 import { civName, civShort, getJson, pct, postJson, rateTone, shortDate } from '../format';
 import { fanFlairText } from '../../shared/countries';
 import { sharePage } from '../share';
-import { BackButton, Chip, Delta, MatchList, Section, Spinner, TierBadge, Tile, WinRate, type Nav } from '../ui';
+import { BackButton, Chip, Delta, ExternalLink, MatchList, Section, Spinner, TierBadge, Tile, WinRate, type Nav } from '../ui';
 
 type Period = 'all' | '12m' | 'year';
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -28,30 +28,6 @@ const periodStart = (p: Period): string | null =>
   p === '12m' ? addDays(today(), -365) : p === 'year' ? `${today().slice(0, 4)}-01-01` : null;
 
 // ------------------------------------------------------------------ AoE4World
-
-/**
- * A real link (so the address shows on hover and can be copied with a right-click) that opens
- * through Reddit's navigateTo. The link is also copied as a fallback, since Reddit may refuse
- * to open some outside sites without telling the app.
- */
-const ExternalLink = ({ url, className, children }: { url: string; className?: string; children: ReactNode }) => (
-  <a
-    href={url}
-    target="_blank"
-    rel="noopener noreferrer"
-    className={className}
-    onClick={(e) => {
-      e.preventDefault();
-      navigateTo(url);
-      navigator.clipboard.writeText(url).then(
-        () => showToast('Link copied: if AoE4World did not open, paste it in your browser'),
-        () => undefined
-      );
-    }}
-  >
-    {children}
-  </a>
-);
 
 const Aoe4WorldCard = ({ name }: { name: string }) => {
   const [data, setData] = useState<Aoe4WorldResponse | null>(null);

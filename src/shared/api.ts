@@ -34,8 +34,6 @@ export type NationResponse = {
   /** Every ATR player of the nation, active first, best Elo first. */
   players: BoardRow[];
   stats: NationStats | null;
-  /** Titles won by the nation's players, newest first. */
-  titles: Title[];
 };
 
 export type RecordsResponse = { sheetDate: string; records: RecordList[] };

@@ -7,7 +7,7 @@ import { nameKey, type BoardRow } from '../shared/atr';
 import type { BoardResponse, MeResponse } from '../shared/api';
 import { Flag } from './Flag';
 import { getJson, pageTitle, shortDate, takeOpenPage, type Page } from './format';
-import { Chip, Delta, FormDots, Spinner, WinRate, type Nav } from './ui';
+import { Chip, Delta, ExternalLink, FormDots, Spinner, WinRate, type Nav } from './ui';
 import { CompareView } from './views/Compare';
 import { NationView } from './views/Nation';
 import { NationsView } from './views/Nations';
@@ -277,7 +277,10 @@ export const App = () => {
               <button className="underline" onClick={() => navigateTo(ATR_SHEET_URL)}>
                 ATR sheet
               </button>{' '}
-              and AoE4World
+              and{' '}
+              <ExternalLink url="https://aoe4world.com" className="underline">
+                AoE4World
+              </ExternalLink>
               <span className="mt-1 block">
                 Age of Empires IV © Microsoft Corporation. Civilization flags used under Microsoft's Game Content Usage
                 Rules; not endorsed by or affiliated with Microsoft.

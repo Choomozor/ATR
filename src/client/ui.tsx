@@ -1,3 +1,4 @@
+import { navigateTo, showToast } from '@devvit/web/client';
 import type { ReactNode } from 'react';
 import type { Match } from '../shared/atr';
 import { pct, rateTone, shortDate } from './format';
@@ -136,4 +137,28 @@ export const TierBadge = ({ tier }: { tier: string }) => (
   >
     {tier.replace('-Tier', '')}
   </span>
+);
+
+/**
+ * A real link (so the address shows on hover and can be copied with a right-click) that opens
+ * through Reddit's navigateTo. The link is also copied as a fallback, since Reddit may refuse
+ * to open some outside sites without telling the app.
+ */
+export const ExternalLink = ({ url, className, children }: { url: string; className?: string; children: ReactNode }) => (
+  <a
+    href={url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={className}
+    onClick={(e) => {
+      e.preventDefault();
+      navigateTo(url);
+      navigator.clipboard.writeText(url).then(
+        () => showToast('Link copied: if the page did not open, paste it in your browser'),
+        () => undefined
+      );
+    }}
+  >
+    {children}
+  </a>
 );

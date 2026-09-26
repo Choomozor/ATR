@@ -185,14 +185,7 @@ api.get('/nation', async (c) => {
     return c.json<ErrorResponse>({ status: 'error', message: `No ATR player from "${country}"` }, 404);
   }
   const name = players[0]!.country;
-  const keys = new Set(players.map((p) => nameKey(p.name)));
-  const [stats, titles] = await Promise.all([readNationStats(name), readTitles()]);
-  return c.json<NationResponse>({
-    country: name,
-    players,
-    stats,
-    titles: titles.filter((t) => keys.has(nameKey(t.champion))),
-  });
+  return c.json<NationResponse>({ country: name, players, stats: await readNationStats(name) });
 });
 
 api.get('/tournaments', async (c) => {
