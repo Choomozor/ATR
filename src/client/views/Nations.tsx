@@ -47,6 +47,14 @@ export const NationsView = ({ rows, nav }: { rows: BoardRow[]; nav: Nav }) => {
                     </button>
                   </li>
                 ))}
+                <li>
+                  <button
+                    onClick={() => nav.nation(n.country)}
+                    className="flex w-full items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 active:bg-amber-100 dark:text-amber-400 dark:hover:bg-stone-800"
+                  >
+                    Open the {n.country} page →
+                  </button>
+                </li>
               </ul>
             )}
           </li>

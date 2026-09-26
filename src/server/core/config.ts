@@ -28,5 +28,9 @@ export const KEY_LAST_SHEET_DATE = 'atr:sheet-date:last';
 export const KEY_LAST_POSTED_DATE = 'atr:sheet-date:posted';
 export const KEY_RANKING_POST = 'atr:ranking-post';
 export const KEY_RECORDS = 'atr:records';
+export const KEY_TITLES = 'atr:titles';
+export const KEY_NATIONS = 'atr:nations';
 /** Tournament details live next to the match history of the same sync. */
 export const tournamentsKey = (matchesVersion: string): string => `${matchesVersion}:t`;
+/** Monthly rank history per player, next to the match history of the same sync. */
+export const ranksKey = (matchesVersion: string): string => `${matchesVersion}:r`;

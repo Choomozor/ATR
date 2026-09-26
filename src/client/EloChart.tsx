@@ -208,3 +208,97 @@ export const CompareChart = ({ series }: { series: [ChartSeries, ChartSeries] })
     </div>
   );
 };
+
+const RANK_TICKS = [1, 2, 3, 5, 10, 20, 32, 50, 100, 200, 500, 1000, 2000];
+
+/** Rank at each month end, #1 at the top, on a log scale so the top of the ladder stays readable. */
+export const RankChart = ({ points }: { points: [string, number][] }) => {
+  const [hover, setHover] = useState<number | null>(null);
+
+  const geo = useMemo(() => {
+    if (points.length < 2) return null;
+    const t = (ym: string) => time(`${ym}-15`);
+    const t0 = t(points[0]![0]);
+    const t1 = t(points[points.length - 1]![0]);
+    const ranks = points.map((p) => p[1]);
+    const lo = Math.log(Math.max(1, Math.min(...ranks)));
+    const hi = Math.log(Math.max(...ranks) + 1);
+    const x = (ym: string) => PAD.left + ((t(ym) - t0) / Math.max(t1 - t0, 1)) * (W - PAD.left - PAD.right);
+    const y = (r: number) => PAD.top + ((Math.log(r) - lo) / Math.max(hi - lo, 0.001)) * (H - PAD.top - PAD.bottom);
+    const xy = points.map(([ym, r]) => [x(ym), y(r)] as const);
+    // Break the line where the player was inactive (a gap of more than one month).
+    let d = '';
+    points.forEach(([ym], i) => {
+      const [px, py] = xy[i]!;
+      const prev = points[i - 1];
+      const gap = !prev || t(ym) - t(prev[0]) > 40 * 86_400_000;
+      d += `${gap ? 'M' : 'L'}${px.toFixed(1)},${py.toFixed(1)}`;
+    });
+    const ticks = RANK_TICKS.filter((r) => Math.log(r) >= lo - 0.01 && Math.log(r) <= hi + 0.01);
+    const years: { label: string; x: number }[] = [];
+    for (let yr = new Date(t0).getUTCFullYear() + 1; yr <= new Date(t1).getUTCFullYear(); yr++) {
+      years.push({ label: String(yr), x: x(`${yr}-01`) - 3 });
+    }
+    let best = 0;
+    points.forEach((p, i) => {
+      if (p[1] < points[best]![1]) best = i;
+    });
+    return { xy, d, ticks, y, years, best };
+  }, [points]);
+
+  if (!geo) return <p className="text-sm text-stone-500">Not ranked long enough in this period to draw a curve.</p>;
+
+  const onMove = (e: PointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - box.left) / box.width) * W;
+    let best = 0;
+    geo.xy.forEach(([x], i) => {
+      if (Math.abs(x - px) < Math.abs(geo.xy[best]![0] - px)) best = i;
+    });
+    setHover(best);
+  };
+
+  const shown = hover ?? points.length - 1;
+  const [ym, rank] = points[shown]!;
+  const [hx, hy] = geo.xy[shown]!;
+  const [bestYm, bestRank] = points[geo.best]!;
+
+  return (
+    <div className="rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+      <p className="mb-1 flex flex-wrap items-baseline gap-x-2 text-sm">
+        <span className="font-bold tabular-nums">#{rank}</span>
+        <span className="text-stone-500">{shortDate(`${ym}-01`).replace(/^1 /, '')}</span>
+        <span className="ml-auto text-xs text-stone-500">
+          best #{bestRank} · {shortDate(`${bestYm}-01`).replace(/^1 /, '')}
+        </span>
+      </p>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full touch-none select-none text-sky-700 dark:text-sky-400"
+        onPointerMove={onMove}
+        onPointerDown={onMove}
+        onPointerLeave={() => setHover(null)}
+        role="img"
+        aria-label={`Rank from #${points[0]![1]} to #${points[points.length - 1]![1]}`}
+      >
+        {geo.ticks.map((t) => (
+          <g key={t}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={geo.y(t)} y2={geo.y(t)} className="stroke-stone-200 dark:stroke-stone-800" strokeWidth={1} />
+            <text x={PAD.left - 6} y={geo.y(t) + 4} textAnchor="end" className="fill-stone-500 text-[11px] tabular-nums">
+              #{t}
+            </text>
+          </g>
+        ))}
+        {geo.years.map((yr) => (
+          <text key={yr.label} x={yr.x} y={H - 6} textAnchor="middle" className="fill-stone-500 text-[11px]">
+            {yr.label}
+          </text>
+        ))}
+        <path d={geo.d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" />
+        <line x1={hx} x2={hx} y1={PAD.top} y2={H - PAD.bottom} className="stroke-stone-400" strokeWidth={1} strokeDasharray="3 3" />
+        <circle cx={hx} cy={hy} r={4.5} fill="currentColor" className="stroke-white dark:stroke-stone-900" strokeWidth={2} />
+      </svg>
+      <p className="mt-1 text-[11px] text-stone-500">Rank among active players at each month end, rebuilt from the match history.</p>
+    </div>
+  );
+};

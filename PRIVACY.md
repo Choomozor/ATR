@@ -1,8 +1,13 @@
 # Privacy Policy: AoE4 Esports Tournament Ranking (ATR) app
 
-Last updated: 25 September 2026
+Last updated: 26 September 2026
 
-**The app does not collect, store or share personal information about Reddit users.** It does not read your username, track what you view or record your activity.
+**The app does not collect, store or share personal information about Reddit users.** It does not track what you view or record your activity.
+
+The app reads the username of the person viewing it in two cases only, at that moment and without saving it:
+
+- to decide whether to show features that are limited to certain accounts;
+- when you choose to wear a "<player> fan" user flair: the app asks Reddit to set that flair on your account in this community (or to remove it if you ask). The flair is stored by Reddit like any other user flair, not by the app, and you can change or remove it at any time.
 
 ## What the app stores
 

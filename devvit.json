@@ -97,6 +97,11 @@
         "type": "boolean",
         "label": "Post a summary automatically each time the ATR sheet is updated",
         "defaultValue": false
+      },
+      "allowFanFlair": {
+        "type": "boolean",
+        "label": "Let users set a \"<player> fan\" user flair from player pages (replaces their current flair)",
+        "defaultValue": true
       }
     }
   }

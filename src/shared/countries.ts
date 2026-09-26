@@ -23,3 +23,23 @@ const CODES: Record<string, string> = {
 };
 
 export const countryCode = (country: string): string | null => CODES[country.trim().toLowerCase()] ?? null;
+
+/** Country flag as an emoji ("France" -> 🇫🇷; England, Scotland and Wales use their tag flags). */
+export function flagEmoji(country: string): string {
+  const code = countryCode(country);
+  if (!code) return '';
+  const sub = /^gb-(eng|sct|wls)$/.exec(code);
+  if (sub) {
+    const tag = (s: string) => [...s].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
+    return `🏴${tag(`gb${sub[1]}`)}\u{E007F}`;
+  }
+  if (!/^[a-z]{2}$/.test(code)) return '';
+  return [...code.toUpperCase()].map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)).join('');
+}
+
+/** Text of the fan flair: "🇫🇷 MarineLorD fan", kept under Reddit's 64 character limit. */
+export function fanFlairText(player: string, country: string): string {
+  const flag = flagEmoji(country);
+  const text = `${flag ? `${flag} ` : ''}${player} fan`;
+  return text.length <= 64 ? text : `${player.slice(0, 55)} fan`;
+}

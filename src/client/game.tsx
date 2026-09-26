@@ -9,6 +9,7 @@ import { Flag } from './Flag';
 import { getJson, pageTitle, shortDate, takeOpenPage, type Page } from './format';
 import { Chip, Delta, FormDots, Spinner, WinRate, type Nav } from './ui';
 import { CompareView } from './views/Compare';
+import { NationView } from './views/Nation';
 import { NationsView } from './views/Nations';
 import { PlayerView } from './views/Player';
 import { PredictorView } from './views/Predictor';
@@ -160,13 +161,11 @@ export const App = () => {
   });
 
   // The Predictor tab is private: only listed viewers get it (checked by the server).
-  const [predictor, setPredictor] = useState(false);
+  const [me, setMe] = useState<MeResponse>({ predictor: false, fanFlair: false });
   useEffect(() => {
-    getJson<MeResponse>('/api/me').then(
-      (me) => setPredictor(me.predictor),
-      () => setPredictor(false)
-    );
+    getJson<MeResponse>('/api/me').then(setMe, () => undefined);
   }, []);
+  const predictor = me.predictor;
   const tabs = (Object.keys(TAB_LABEL) as Tab[]).filter((t) => t !== 'predictor' || predictor);
 
   useEffect(() => {
@@ -185,6 +184,7 @@ export const App = () => {
     player: (name) => push({ kind: 'player', name }),
     tournament: (name) => push({ kind: 'tournament', name }),
     compare: (a, b) => push({ kind: 'compare', a, b }),
+    nation: (name) => push({ kind: 'nation', name }),
   };
   const back = () => setStack((s) => s.slice(0, -1));
 
@@ -201,7 +201,15 @@ export const App = () => {
       </datalist>
 
       {page?.kind === 'player' && (
-        <PlayerView key={`p:${stack.length}:${page.name}`} name={page.name} board={byName} onBack={back} backLabel={backLabel} nav={nav} />
+        <PlayerView
+          key={`p:${stack.length}:${page.name}`}
+          name={page.name}
+          board={byName}
+          onBack={back}
+          backLabel={backLabel}
+          nav={nav}
+          canFlair={me.fanFlair}
+        />
       )}
       {page?.kind === 'compare' && (
         <CompareView
@@ -209,6 +217,16 @@ export const App = () => {
           a={page.a}
           b={page.b}
           board={byName}
+          onBack={back}
+          backLabel={backLabel}
+          nav={nav}
+        />
+      )}
+      {page?.kind === 'nation' && (
+        <NationView
+          key={`n:${stack.length}:${page.name}`}
+          country={page.name}
+          rows={board?.rows ?? []}
           onBack={back}
           backLabel={backLabel}
           nav={nav}
@@ -260,6 +278,10 @@ export const App = () => {
                 ATR sheet
               </button>{' '}
               and AoE4World
+              <span className="mt-1 block">
+                Age of Empires IV © Microsoft Corporation. Civilization flags used under Microsoft's Game Content Usage
+                Rules; not endorsed by or affiliated with Microsoft.
+              </span>
             </footer>
           )}
         </>

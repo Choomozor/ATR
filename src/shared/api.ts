@@ -1,4 +1,14 @@
-import type { BoardRow, HeadToHead, PackedMatch, RecordList, TournamentDetail, TournamentSummary } from './atr';
+import type {
+  BoardRow,
+  HeadToHead,
+  NationStats,
+  PackedMatch,
+  RankPoint,
+  RecordList,
+  Title,
+  TournamentDetail,
+  TournamentSummary,
+} from './atr';
 
 export type SyncStatus = {
   ok: boolean;
@@ -17,6 +27,15 @@ export type BoardResponse = {
 export type TopResponse = {
   sheetDate: string;
   rows: BoardRow[];
+};
+
+export type NationResponse = {
+  country: string;
+  /** Every ATR player of the nation, active first, best Elo first. */
+  players: BoardRow[];
+  stats: NationStats | null;
+  /** Titles won by the nation's players, newest first. */
+  titles: Title[];
 };
 
 export type RecordsResponse = { sheetDate: string; records: RecordList[] };
@@ -38,10 +57,17 @@ export type PlayerResponse = {
   matches: PackedMatch[];
   /** Current active top 10, for the "vs top 10" stat. */
   top10: string[];
+  /** Tournaments won, newest first. */
+  titles: Title[];
+  /** Rank among active players at each month end (current month from the sheet). */
+  ranks: RankPoint[];
 };
 
 export type TournamentsResponse = { tournaments: TournamentSummary[] };
-export type TournamentResponse = TournamentDetail;
+export type TournamentResponse = TournamentDetail & {
+  /** Champion of the event this stage belongs to, when known. */
+  title: Title | null;
+};
 
 export type H2HResponse = HeadToHead;
 
@@ -70,6 +96,13 @@ export type Aoe4WorldResponse = {
 };
 
 /** What the current viewer can see. */
-export type MeResponse = { predictor: boolean };
+export type MeResponse = {
+  predictor: boolean;
+  /** Logged in and the subreddit allows fan flairs. */
+  fanFlair: boolean;
+};
+
+export type FanFlairRequest = { player: string | null };
+export type FanFlairResponse = { flair: string | null };
 
 export type ErrorResponse = { status: 'error'; message: string };

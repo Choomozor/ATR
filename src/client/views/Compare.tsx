@@ -79,6 +79,13 @@ function buildLines(A: Side, B: Side): Line[] {
       vb: B.stats.bestStreak?.count ?? null,
     },
     {
+      label: 'Titles',
+      a: A.data.titles.length ? `🏆 ${A.data.titles.length}` : '–',
+      b: B.data.titles.length ? `🏆 ${B.data.titles.length}` : '–',
+      va: A.data.titles.length,
+      vb: B.data.titles.length,
+    },
+    {
       label: 'Tournaments',
       a: A.stats.tournaments,
       b: B.stats.tournaments,

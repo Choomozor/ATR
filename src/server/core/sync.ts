@@ -6,6 +6,12 @@ import {
   buildTournaments,
   addDays,
   computeRecords,
+  computeNationStats,
+  rankHistories,
+  type RankPoint,
+  type NationStats,
+  findTitles,
+  type Title,
   findUpsets,
   nameKey,
   summarize,
@@ -26,8 +32,11 @@ import {
   KEY_MATCHES_POINTER,
   KEY_RANKING_POST,
   KEY_RECORDS,
+  KEY_TITLES,
+  KEY_NATIONS,
   KEY_TOURNAMENT_LIST,
   tournamentsKey,
+  ranksKey,
   KEY_SYNC_STATUS,
   KEY_TOP10,
   TRDB_TAB,
@@ -91,6 +100,22 @@ export async function loadSample(): Promise<SyncStatus> {
   }
 }
 
+/** Writes a big hash in chunks (Redis requests are capped at 5 MB). */
+async function writeHash(key: string, entries: Iterable<[string, string]>): Promise<void> {
+  let chunk: Record<string, string> = {};
+  let bytes = 0;
+  for (const [field, value] of entries) {
+    if (bytes + value.length > MAX_CHUNK_BYTES && bytes > 0) {
+      await redis.hSet(key, chunk);
+      chunk = {};
+      bytes = 0;
+    }
+    chunk[field] = value;
+    bytes += value.length + field.length;
+  }
+  if (bytes > 0) await redis.hSet(key, chunk);
+}
+
 async function storeData(eloRows: string[][], trdbRows: string[][], label: string): Promise<SyncStatus> {
   const startedAt = new Date().toISOString();
   const elo = parseEloSheet(eloRows);
@@ -149,15 +174,20 @@ async function storeData(eloRows: string[][], trdbRows: string[][], label: strin
     rows: buildBoard(elo, matches),
   };
   const top10 = board.rows.filter((r) => r.active).slice(0, 10).map((r) => r.name);
+  const ranks = rankHistories(matches, board.rows, elo.sheetDate || startedAt.slice(0, 10));
+  await writeHash(ranksKey(version), [...ranks].map(([k, v]): [string, string] => [k, JSON.stringify(v)]));
 
   const previous = await redis.get(KEY_MATCHES_POINTER);
   await redis.set(KEY_BOARD, JSON.stringify(board));
   await redis.set(KEY_TOP10, JSON.stringify(top10));
   await redis.set(KEY_TOURNAMENT_LIST, JSON.stringify(tournamentList));
   const today = elo.sheetDate || startedAt.slice(0, 10);
-  await redis.set(KEY_RECORDS, JSON.stringify(computeRecords(matches, playerNames, board.rows, today)));
+  const titles = findTitles(trdbRows, playerNames);
+  await redis.set(KEY_TITLES, JSON.stringify(titles));
+  await redis.set(KEY_NATIONS, JSON.stringify(Object.fromEntries(computeNationStats(matches, board.rows, titles))));
+  await redis.set(KEY_RECORDS, JSON.stringify(computeRecords(matches, playerNames, board.rows, today, titles)));
   await redis.set(KEY_MATCHES_POINTER, version);
-  if (previous && previous !== version) await redis.del(previous, tournamentsKey(previous));
+  if (previous && previous !== version) await redis.del(previous, tournamentsKey(previous), ranksKey(previous));
 
   // Summary of this ATR update, for the automatic post. Upsets count from the previous update.
   const lastSheetDate = await redis.get(KEY_LAST_SHEET_DATE);
@@ -221,6 +251,25 @@ export async function postDigest(force = false): Promise<string | null> {
   });
   await redis.set(KEY_LAST_POSTED_DATE, digest.sheetDate);
   return `https://www.reddit.com/r/${context.subredditName}/comments/${post.id.replace(/^t3_/, '')}`;
+}
+
+export async function readRanks(playerKey: string): Promise<RankPoint[]> {
+  const pointer = await redis.get(KEY_MATCHES_POINTER);
+  if (!pointer) return [];
+  const raw = await redis.hGet(ranksKey(pointer), playerKey);
+  return raw ? (JSON.parse(raw) as RankPoint[]) : [];
+}
+
+export async function readNationStats(country: string): Promise<NationStats | null> {
+  const raw = await redis.get(KEY_NATIONS);
+  if (!raw) return null;
+  const all = JSON.parse(raw) as Record<string, NationStats>;
+  return all[country] ?? null;
+}
+
+export async function readTitles(): Promise<Title[]> {
+  const raw = await redis.get(KEY_TITLES);
+  return raw ? (JSON.parse(raw) as Title[]) : [];
 }
 
 export async function readRecords(): Promise<string | null> {

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { fanFlairText, flagEmoji } from '../src/shared/countries.ts';
 import assert from 'node:assert/strict';
 import {
   buildBoard,
@@ -25,6 +26,10 @@ import {
   bracketSize,
   bracketOdds,
   tournamentHighlights,
+  classifyStage,
+  findTitles,
+  computeNationStats,
+  rankHistories,
 } from '../src/shared/atr.ts';
 
 // Real rows copied from the ATR sheet (Tournament ELO + TRDB), 2026-09-25.
@@ -308,4 +313,101 @@ test('tournamentHighlights finds the upset, the top clash and the best run', () 
   const wc = tournamentHighlights(buildTournaments(trdb, names).get('Epohers World Cup 2')!);
   assert.equal(wc.biggestUpset!.winner, 'VortiX');
   assert.equal(wc.deciders, 2);
+});
+
+test('classifyStage separates qualifiers, groups and finals', () => {
+  assert.deepEqual(classifyStage('EGC Masters Fall - Season 2: Playoffs'), { event: 'EGC Masters Fall - Season 2', kind: 'final' });
+  assert.deepEqual(classifyStage('EGC Masters Fall - Season 2: Group Stage'), { event: 'EGC Masters Fall - Season 2', kind: 'group' });
+  assert.deepEqual(classifyStage('EGC Masters Fall - Season 2: Qualifier #1'), { event: 'EGC Masters Fall - Season 2', kind: 'qualifier' });
+  assert.deepEqual(classifyStage('Golden League: The Final Four'), { event: 'Golden League', kind: 'final' });
+  assert.deepEqual(classifyStage('CIS Cup 11: Qualifer 1').kind, 'qualifier');
+  assert.deepEqual(classifyStage('Red Bull Wololo: Legacy 2022 Age of Empires IV'), {
+    event: 'Red Bull Wololo: Legacy 2022 Age of Empires IV',
+    kind: 'whole',
+  });
+});
+
+test('findTitles reads the champion from the final day of the decisive stage', () => {
+  const head = 'Date,Tournament,Target,Opponent,Target TR,Opponent TR,Target Score,Opponent Score,Winner,Tier';
+  const series = (date: string, t: string, w: string, l: string, sw: number, sl: number) => [
+    `${date},${t},${w},${l},0,0,${sw},${sl},1,S-Tier`,
+    `${date},${t},${l},${w},0,0,${sl},${sw},0,S-Tier`,
+  ];
+  const cup = 'Big Cup';
+  const rows = [
+    head,
+    // Qualifier: must never count.
+    ...series('2026-01-01', `${cup}: Qualifier #1`, 'Q', 'R', 3, 0),
+    ...series('2026-01-01', `${cup}: Qualifier #1`, 'Q', 'S', 3, 0),
+    ...series('2026-01-01', `${cup}: Qualifier #1`, 'Q', 'T', 3, 0),
+    // Group stage: the champion loses here, which must not matter.
+    ...series('2026-01-10', `${cup}: Group Stage`, 'B', 'A', 2, 1),
+    ...series('2026-01-10', `${cup}: Group Stage`, 'C', 'D', 2, 0),
+    // Playoffs: semis and final on the last day, final listed first on purpose.
+    ...series('2026-01-20', `${cup}: Playoffs`, 'A', 'C', 4, 2),
+    ...series('2026-01-20', `${cup}: Playoffs`, 'A', 'B', 3, 1),
+    ...series('2026-01-20', `${cup}: Playoffs`, 'C', 'D', 3, 0),
+  ].join('\n');
+  const titles = findTitles(parseCsv(rows));
+  assert.equal(titles.length, 1);
+  assert.deepEqual(titles[0], {
+    event: 'Big Cup',
+    stage: 'Big Cup: Playoffs',
+    tier: 'S-Tier',
+    date: '2026-01-20',
+    champion: 'A',
+    runnerUp: 'C',
+    score: '4–2',
+  });
+
+  // A round robin where two players end the day unbeaten gets no champion.
+  const rr = [
+    head,
+    ...series('2026-02-01', 'Round Robin Cup', 'A', 'B', 2, 0),
+    ...series('2026-02-01', 'Round Robin Cup', 'C', 'D', 2, 0),
+  ].join('\n');
+  assert.equal(findTitles(parseCsv(rr)).length, 0);
+});
+
+test('fan flair text uses the country flag emoji', () => {
+  assert.equal(flagEmoji('France'), '🇫🇷');
+  assert.equal(flagEmoji('Nowhere'), '');
+  assert.equal(fanFlairText('MarineLorD', 'France'), '🇫🇷 MarineLorD fan');
+  assert.equal(fanFlairText('VortiX', ''), 'VortiX fan');
+  assert.ok(flagEmoji('England').startsWith('🏴'));
+});
+
+test('computeNationStats counts international series only', () => {
+  const trdb = parseTrdb(parseCsv(TRDB));
+  const board = buildBoard(parseEloSheet(parseCsv(ELO)), trdb);
+  const stats = computeNationStats(trdb, board, []);
+  const france = stats.get('France')!;
+  // MarineLorD vs Spain (VortiX) 1-2 and vs Belarus (Anotand) 2-0.
+  assert.deepEqual([france.wins, france.losses], [3, 2]);
+  assert.deepEqual(
+    france.vs.map((v) => [v.country, v.wins, v.losses]),
+    [
+      ['Spain', 1, 2],
+      ['Belarus', 2, 0],
+    ]
+  );
+});
+
+test('rankHistories ranks active players at each month end', () => {
+  const trdb = parseTrdb(parseCsv(TRDB));
+  const board = buildBoard(parseEloSheet(parseCsv(ELO)), trdb);
+  const h = rankHistories(trdb, board, '2026-09-20');
+  const marine = new Map(h.get('marinelord'));
+  const vortix = new Map(h.get('vortix'));
+  // May 2026: MarineLorD 2357.6 > Anotand 2103.7, VortiX 2216.2 is second.
+  assert.equal(marine.get('2026-05'), 1);
+  assert.equal(vortix.get('2026-05'), 2);
+  // June: VortiX beat MarineLorD but stays below (2145 vs 2188).
+  assert.equal(vortix.get('2026-06'), 2);
+  // September uses the sheet's current ranks.
+  assert.equal(marine.get('2026-09'), 1);
+  // ZertoN played once in 2021: ranked for 6 months, then inactive.
+  const zerton = h.get('zerton')!;
+  assert.equal(zerton[0]![0], '2021-09');
+  assert.ok(zerton.every(([m]) => m <= '2022-03'));
 });

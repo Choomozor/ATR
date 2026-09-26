@@ -9,22 +9,7 @@ import {
 import type { TournamentResponse, TournamentsResponse } from '../../shared/api';
 import { getJson, rateTone, shortDate } from '../format';
 import { sharePage } from '../share';
-import { BackButton, Chip, Delta, Section, Spinner, type Nav } from '../ui';
-
-const TIER_STYLE: Record<string, string> = {
-  'S-Tier': 'bg-amber-600 text-white',
-  'A-Tier': 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100',
-  'B-Tier': 'bg-stone-200 text-stone-800 dark:bg-stone-700 dark:text-stone-100',
-  'C-Tier': 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
-};
-
-export const TierBadge = ({ tier }: { tier: string }) => (
-  <span
-    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${TIER_STYLE[tier] ?? 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'}`}
-  >
-    {tier.replace('-Tier', '')}
-  </span>
-);
+import { BackButton, Chip, Delta, Section, Spinner, TierBadge, type Nav } from '../ui';
 
 /** The winner's Elo win chance before the series, when both ratings are known. */
 const winnerChance = (m: TournamentSeries): number | null => {
@@ -204,8 +189,28 @@ const Highlights = ({ t, nav }: { t: TournamentResponse; nav: Nav }) => {
     },
   ];
 
+  const title = t.title;
   return (
     <Section title="Highlights">
+      {title && (
+        <button
+          onClick={() => nav.player(title.champion)}
+          className="mb-2 flex w-full items-center gap-3 rounded-lg bg-amber-50 p-3 text-left ring-1 ring-amber-300 transition-colors hover:bg-amber-100 dark:bg-amber-950 dark:ring-amber-800 dark:hover:bg-amber-900"
+        >
+          <span className="text-2xl" aria-hidden>
+            🏆
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+              {title.stage === t.name ? 'Champion' : `Event champion · decided in ${title.stage.replace(title.event, '').replace(/^\s*[:-]\s*/, '') || 'the main event'}`}
+            </span>
+            <span className="block truncate text-lg font-bold">{title.champion}</span>
+            <span className="block truncate text-xs text-stone-500">
+              beat {title.runnerUp} {title.score} in the final · {shortDate(title.date)}
+            </span>
+          </span>
+        </button>
+      )}
       {cards.length > 0 && <div className="grid grid-cols-2 gap-2">{cards}</div>}
       <div className="mt-2 grid grid-cols-4 gap-2 text-center">
         {numbers.map((n) => (

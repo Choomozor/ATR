@@ -807,8 +807,12 @@ export type RecordEntry = {
   /** Headline number, already formatted. */
   value: string;
   detail: string;
-  /** Second player involved (the beaten favourite for upsets). */
+  /** Second player involved (the beaten favourite for upsets, the rival for rivalries). */
   other?: string;
+  /** Word between the two names ("beat", "vs"). */
+  joiner?: string;
+  /** Small label under the value ("win chance", "series"). */
+  unit?: string;
 };
 
 export type RecordList = { id: string; title: string; note: string; entries: RecordEntry[] };
@@ -824,6 +828,7 @@ export function computeRecords(
   playerNames: Map<string, string>,
   rows: BoardRow[],
   today: string,
+  titles: Title[] = [],
   size = 10
 ): RecordList[] {
   const currentElo = new Map(rows.map((r) => [nameKey(r.name), r.elo]));
@@ -833,6 +838,7 @@ export function computeRecords(
   const volume: { name: string; series: number; wins: number; losses: number; tournaments: number }[] = [];
   const climbs: { name: string; change: number; series: number; now: number | undefined }[] = [];
   const upsets: { name: string; other: string; chance: number; m: Match }[] = [];
+  const pairs: { name: string; other: string; wins: number; losses: number; series: number; last: string }[] = [];
 
   for (const [key, list] of byPlayer) {
     const name = playerNames.get(key) ?? key;
@@ -842,7 +848,17 @@ export function computeRecords(
     let change = 0;
     let recent = 0;
     const events = new Set<string>();
+    const vs = new Map<string, { other: string; wins: number; losses: number; series: number; last: string }>();
     for (const m of list) {
+      const ok = nameKey(m.opponent);
+      if (key < ok) {
+        const p = vs.get(ok) ?? { other: playerNames.get(ok) ?? m.opponent, wins: 0, losses: 0, series: 0, last: '' };
+        p.series++;
+        if (m.result === 'W') p.wins++;
+        else if (m.result === 'L') p.losses++;
+        if (m.date > p.last) p.last = m.date;
+        vs.set(ok, p);
+      }
       if (m.ratingAfter > 0 && (!peak || m.ratingAfter > peak.rating)) peak = { rating: m.ratingAfter, date: m.date };
       if (m.result === 'W') wins++;
       else if (m.result === 'L') losses++;
@@ -856,6 +872,7 @@ export function computeRecords(
         if (chance < 0.5) upsets.push({ name, other: m.opponent, chance, m });
       }
     }
+    for (const p of vs.values()) pairs.push({ name, ...p });
     if (peak) peaks.push({ name, ...peak, now: currentElo.get(key) });
     const streak = longestWinStreak(list);
     if (streak) streaks.push({ name, ...streak });
@@ -866,7 +883,62 @@ export function computeRecords(
   const round = (n: number) => Math.round(n);
   const range = (from: string, to: string) => (from === to ? fmtDate(from) : `${monthYear(from)} – ${monthYear(to)}`);
 
+  const titleCount = new Map<string, { name: string; total: number; s: number; last: Title }>();
+  for (const t of titles) {
+    const k = nameKey(t.champion);
+    const c = titleCount.get(k) ?? { name: playerNames.get(k) ?? t.champion, total: 0, s: 0, last: t };
+    c.total++;
+    if (t.tier === 'S-Tier') c.s++;
+    if (t.date > c.last.date) c.last = t;
+    titleCount.set(k, c);
+  }
+
   return [
+    {
+      id: 'titles',
+      title: 'Most titles',
+      note: 'Tournaments won (qualifiers and group stages excluded; champion read from the final day)',
+      entries: [...titleCount.values()]
+        .sort((a, b) => b.total - a.total || b.s - a.s)
+        .slice(0, size)
+        .map((c) => ({
+          name: c.name,
+          value: String(c.total),
+          unit: 'titles',
+          detail: `${c.s} S-Tier · last: ${c.last.event}`,
+        })),
+    },
+    {
+      id: 'sTitles',
+      title: 'Most S-Tier titles',
+      note: 'S-Tier tournaments won',
+      entries: [...titleCount.values()]
+        .filter((c) => c.s > 0)
+        .sort((a, b) => b.s - a.s || b.total - a.total)
+        .slice(0, size)
+        .map((c) => ({
+          name: c.name,
+          value: String(c.s),
+          unit: 'S-Tier',
+          detail: `${c.total} titles in all tiers`,
+        })),
+    },
+    {
+      id: 'rivalries',
+      title: 'Rivalries',
+      note: 'Most series played between two players',
+      entries: pairs
+        .sort((a, b) => b.series - a.series || (a.last < b.last ? 1 : -1))
+        .slice(0, size)
+        .map((p) => ({
+          name: p.name,
+          other: p.other,
+          joiner: 'vs',
+          value: String(p.series),
+          unit: 'series',
+          detail: `${p.wins}–${p.losses} · last ${monthYear(p.last)}`,
+        })),
+    },
     {
       id: 'peak',
       title: 'Highest peak Elo',
@@ -899,6 +971,8 @@ export function computeRecords(
         .map((u) => ({
           name: u.name,
           other: u.other,
+          joiner: 'beat',
+          unit: 'win chance',
           value: `${Math.max(1, Math.round(u.chance * 100))}%`,
           detail: `${u.m.score}–${u.m.opponentScore} · ${u.m.tournament} · ${fmtDate(u.m.date)}`,
         })),
@@ -1084,4 +1158,277 @@ export function tournamentHighlights(t: TournamentDetail): TournamentHighlights 
     deciders,
     favouritesWon: rated ? favourites / rated : null,
   };
+}
+
+// ---------------------------------------------------------------- titles (tournament winners)
+
+/**
+ * How a TRDB tournament name fits into its event. Events are often split into several
+ * "tournaments" in the sheet: "EGC Masters Fall: Qualifier #1", "...: Group Stage", "...: Playoffs".
+ *  - qualifier: never decides a title
+ *  - group: group stage / league round, not where the title is decided
+ *  - final: playoffs, main event, final(s), final four
+ *  - whole: no stage in the name, the event is a single bracket
+ */
+export type StageKind = 'qualifier' | 'group' | 'final' | 'whole';
+
+const QUALIFIER = /qualif|qualifer|\blcq\b|last chance/i;
+const STAGE_TAIL =
+  /^(?:(group stage|groups?|swiss(?: stage)?|round(?: robin)?(?: \d+)?|week \d+|day \d+|league stage)|(playoffs?|main event|(?:grand |the )?finals?(?: four)?|the final four|etapa \d+ final|bracket(?: stage)?|knockout(?: stage)?))$/i;
+
+export function classifyStage(tournament: string): { event: string; kind: StageKind } {
+  const name = tournament.trim();
+  // The stage is what follows the last ":" or " - ".
+  const m = /^(.*\S)\s*(?::|\s-\s)\s*([^:]+?)\s*$/.exec(name);
+  const head = m ? m[1]!.replace(/\s*[:-]\s*$/, '').trim() : name;
+  if (m && QUALIFIER.test(m[2]!)) return { event: head, kind: 'qualifier' };
+  if (QUALIFIER.test(name)) return { event: name, kind: 'qualifier' };
+  if (m) {
+    const tail = STAGE_TAIL.exec(m[2]!);
+    if (tail) return { event: m[1]!.replace(/\s*[:-]\s*$/, '').trim(), kind: tail[1] ? 'group' : 'final' };
+  }
+  return { event: name, kind: 'whole' };
+}
+
+export type Title = {
+  /** Event name without the stage ("EGC Masters Fall - Season 2"). */
+  event: string;
+  /** The TRDB tournament (stage) where the title was decided. */
+  stage: string;
+  tier: string;
+  date: string;
+  champion: string;
+  runnerUp: string;
+  score: string;
+};
+
+type StageSeries = { idx: number; date: string; winner: string; loser: string; score: string };
+
+/** Champion of the last day of a bracket stage, or null when it can't be told apart. */
+function finalDayWinner(day: StageSeries[]): { champion: string; runnerUp: string; score: string } | null {
+  const rec = new Map<string, { name: string; wins: number; losses: number }>();
+  const get = (n: string) => {
+    const k = nameKey(n);
+    let r = rec.get(k);
+    if (!r) rec.set(k, (r = { name: n, wins: 0, losses: 0 }));
+    return r;
+  };
+  for (const x of day) {
+    get(x.winner).wins++;
+    get(x.loser).losses++;
+  }
+  const all = [...rec.values()];
+  let champ = all.filter((r) => r.wins > 0 && r.losses === 0);
+  if (champ.length === 0) {
+    // Bracket reset: the champion lost one set of the grand final.
+    const net = (r: { wins: number; losses: number }) => r.wins - r.losses;
+    const best = Math.max(...all.map(net));
+    champ = all.filter((r) => net(r) === best && r.losses <= 1 && r.wins >= 2);
+  }
+  if (champ.length !== 1) return null;
+  const c = champ[0]!;
+  // The final: the champion's last win of the day against the opponent who won the most that day.
+  const finals = day.filter((x) => nameKey(x.winner) === nameKey(c.name));
+  const final = finals.reduce((a, b) => {
+    const wa = rec.get(nameKey(a.loser))!.wins;
+    const wb = rec.get(nameKey(b.loser))!.wins;
+    return wb > wa || (wb === wa && b.idx > a.idx) ? b : a;
+  });
+  return { champion: c.name, runnerUp: final.loser, score: final.score };
+}
+
+const STAGE_RANK: Record<StageKind, number> = { qualifier: 0, group: 1, whole: 2, final: 3 };
+
+/**
+ * Finds each event's champion from the raw TRDB rows. The decisive stage is the playoffs / final
+ * stage when the event has one, otherwise the event itself when it is a single stage; qualifiers
+ * and group stages never count. The champion is the only player who finished the last day of that
+ * stage without losing a series (the final day of a bracket: semis and final, or just the final).
+ * With a bracket reset both finalists lose once, so the best net record of the day wins. Events
+ * where this is ambiguous (round robins, leagues) get no champion rather than a wrong one.
+ */
+export function findTitles(rows: string[][], playerNames?: Map<string, string>): Title[] {
+  const header = rows[0] ?? [];
+  const col = (label: string): number => header.findIndex((h) => h.trim().toLowerCase() === label);
+  const idx = {
+    date: col('date'),
+    tournament: col('tournament'),
+    target: col('target'),
+    opponent: col('opponent'),
+    score: col('target score'),
+    opponentScore: col('opponent score'),
+    winner: col('winner'),
+    tier: col('tier'),
+  };
+  if (idx.target < 0 || idx.opponent < 0 || idx.tournament < 0) return [];
+  const canon = (n: string) => playerNames?.get(nameKey(n)) ?? n;
+
+  const stages = new Map<string, { tier: string; players: Set<string>; series: StageSeries[]; losses: Map<string, number> }>();
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]!;
+    const tournament = (r[idx.tournament] ?? '').trim();
+    const target = (r[idx.target] ?? '').trim();
+    const opponent = (r[idx.opponent] ?? '').trim();
+    const date = (r[idx.date] ?? '').trim();
+    if (!tournament || !target || !opponent || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const tier = (r[idx.tier] ?? '').trim();
+    let st = stages.get(tournament);
+    if (!st) {
+      st = { tier, players: new Set(), series: [], losses: new Map() };
+      stages.set(tournament, st);
+    }
+    st.players.add(nameKey(target));
+    st.players.add(nameKey(opponent));
+    // Every series is listed from both sides: keep the winner's row only.
+    if ((r[idx.winner] ?? '').trim() !== '1') continue;
+    st.series.push({
+      idx: i,
+      date,
+      winner: canon(target),
+      loser: canon(opponent),
+      score: `${num(r[idx.score])}–${num(r[idx.opponentScore])}`,
+    });
+    st.losses.set(nameKey(opponent), (st.losses.get(nameKey(opponent)) ?? 0) + 1);
+  }
+
+  // Pick the decisive stage of each event.
+  const events = new Map<string, { stage: string; rank: number; end: string }>();
+  const hasQualifiers = new Set<string>();
+  for (const [stage, st] of stages) {
+    if (/showmatch/i.test(st.tier) || st.series.length === 0) continue;
+    const { event, kind } = classifyStage(stage);
+    if (kind === 'qualifier') hasQualifiers.add(event);
+    const rank = STAGE_RANK[kind];
+    if (rank < 2) continue;
+    const end = st.series.reduce((d, s) => (s.date > d ? s.date : d), '');
+    const current = events.get(event);
+    if (!current || rank > current.rank || (rank === current.rank && end > current.end)) {
+      events.set(event, { stage, rank, end });
+    }
+  }
+
+  const titles: Title[] = [];
+  for (const [event, pick] of events) {
+    const st = stages.get(pick.stage)!;
+    // A tiny stage is only trusted when it is the final of an event that had qualifiers.
+    if (st.players.size < 4 && !(hasQualifiers.has(event) && st.series.length <= 3)) continue;
+    const champion = finalDayWinner(st.series.filter((x) => x.date === pick.end));
+    if (!champion) continue;
+    titles.push({ event, stage: pick.stage, tier: st.tier, date: pick.end, ...champion });
+  }
+  return titles.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+// ---------------------------------------------------------------- nation pages
+
+export type NationVs = { country: string; wins: number; losses: number };
+
+export type NationStats = {
+  country: string;
+  /** Series against players of other nations. */
+  wins: number;
+  losses: number;
+  /** Most played opponents' nations first. */
+  vs: NationVs[];
+  titles: number;
+  sTierTitles: number;
+};
+
+/** International records per nation (series between players of two different countries). */
+export function computeNationStats(byPlayer: Map<string, Match[]>, rows: BoardRow[], titles: Title[]): Map<string, NationStats> {
+  const countryOf = new Map(rows.filter((r) => r.country).map((r) => [nameKey(r.name), r.country]));
+  const out = new Map<string, NationStats & { vsMap: Map<string, NationVs> }>();
+  const get = (country: string) => {
+    let n = out.get(country);
+    if (!n) out.set(country, (n = { country, wins: 0, losses: 0, vs: [], titles: 0, sTierTitles: 0, vsMap: new Map() }));
+    return n;
+  };
+  for (const r of rows) if (r.country) get(r.country);
+  for (const [key, list] of byPlayer) {
+    const mine = countryOf.get(key);
+    if (!mine) continue;
+    const n = get(mine);
+    for (const m of list) {
+      const theirs = countryOf.get(nameKey(m.opponent));
+      if (!theirs || theirs === mine || m.result === 'D') continue;
+      const v = n.vsMap.get(theirs) ?? { country: theirs, wins: 0, losses: 0 };
+      if (m.result === 'W') {
+        n.wins++;
+        v.wins++;
+      } else {
+        n.losses++;
+        v.losses++;
+      }
+      n.vsMap.set(theirs, v);
+    }
+  }
+  for (const t of titles) {
+    const c = countryOf.get(nameKey(t.champion));
+    if (!c) continue;
+    const n = get(c);
+    n.titles++;
+    if (t.tier === 'S-Tier') n.sTierTitles++;
+  }
+  const result = new Map<string, NationStats>();
+  for (const [country, n] of out) {
+    const { vsMap, ...rest } = n;
+    rest.vs = [...vsMap.values()].sort((a, b) => b.wins + b.losses - (a.wins + a.losses));
+    result.set(country, rest);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------- rank over time
+
+/** The ATR counts a player as active while their last series is at most this many days old. */
+export const ACTIVE_DAYS = 180;
+
+/** [month "YYYY-MM", rank among active players at the end of that month]. */
+export type RankPoint = [string, number];
+
+const monthEnd = (ym: string): string => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y!, m!, 0)).toISOString().slice(0, 10);
+};
+
+const nextMonth = (ym: string): string => {
+  const [y, m] = ym.split('-').map(Number);
+  return m === 12 ? `${y! + 1}-01` : `${y}-${String(m! + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Rebuilds everyone's rank at the end of each month from the match history: players ranked by
+ * their Tournament Elo after their last series, among those who played in the previous ACTIVE_DAYS.
+ * The current month uses the sheet's own ranks. Returns only months where the player was ranked.
+ */
+export function rankHistories(byPlayer: Map<string, Match[]>, rows: BoardRow[], sheetDate: string): Map<string, RankPoint[]> {
+  const timelines: { key: string; list: Match[]; i: number }[] = [];
+  let first = sheetDate;
+  for (const [key, list] of byPlayer) {
+    const rated = list.filter((m) => m.ratingAfter > 0);
+    if (rated.length === 0) continue;
+    timelines.push({ key, list: rated, i: -1 });
+    if (rated[0]!.date < first) first = rated[0]!.date;
+  }
+  const out = new Map<string, RankPoint[]>();
+  const push = (key: string, p: RankPoint) => {
+    const l = out.get(key);
+    if (l) l.push(p);
+    else out.set(key, [p]);
+  };
+  const current = sheetDate.slice(0, 7);
+  for (let ym = first.slice(0, 7); ym < current; ym = nextMonth(ym)) {
+    const end = monthEnd(ym);
+    const since = addDays(end, -ACTIVE_DAYS);
+    const ranked: { key: string; rating: number }[] = [];
+    for (const t of timelines) {
+      while (t.i + 1 < t.list.length && t.list[t.i + 1]!.date <= end) t.i++;
+      const last = t.list[t.i];
+      if (last && last.date >= since) ranked.push({ key: t.key, rating: last.ratingAfter });
+    }
+    ranked.sort((a, b) => b.rating - a.rating);
+    ranked.forEach((r, i) => push(r.key, [ym, i + 1]));
+  }
+  for (const r of rows) if (r.active && r.rank) push(nameKey(r.name), [current, r.rank]);
+  return out;
 }

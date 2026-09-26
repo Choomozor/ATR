@@ -8,7 +8,7 @@ const MEDAL = ['text-amber-500', 'text-stone-400', 'text-orange-700'];
 export const RecordsView = ({ nav }: { nav: Nav }) => {
   const [data, setData] = useState<RecordsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [active, setActive] = useState('peak');
+  const [active, setActive] = useState('titles');
 
   useEffect(() => {
     getJson<RecordsResponse>('/api/records').then(setData, (e: unknown) =>
@@ -45,14 +45,14 @@ export const RecordsView = ({ nav }: { nav: Nav }) => {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">
                       {e.name}
-                      {e.other && <span className="font-normal text-stone-500"> beat </span>}
+                      {e.other && <span className="font-normal text-stone-500"> {e.joiner ?? 'vs'} </span>}
                       {e.other}
                     </span>
                     <span className="block truncate text-xs text-stone-500">{e.detail}</span>
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block font-mono text-lg font-bold tabular-nums">{e.value}</span>
-                    {e.other && <span className="block text-[10px] uppercase text-stone-500">win chance</span>}
+                    {e.unit && <span className="block text-[10px] uppercase text-stone-500">{e.unit}</span>}
                   </span>
                 </button>
               </li>

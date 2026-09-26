@@ -81,6 +81,7 @@ export type Nav = {
   player: (name: string) => void;
   tournament: (name: string) => void;
   compare: (a: string, b: string) => void;
+  nation: (country: string) => void;
 };
 
 export const MatchList = ({ matches, nav }: { matches: Match[]; nav: Nav }) => (
@@ -120,4 +121,19 @@ export const Chip = ({ active, onClick, children }: { active: boolean; onClick: 
   >
     {children}
   </button>
+);
+
+const TIER_STYLE: Record<string, string> = {
+  'S-Tier': 'bg-amber-600 text-white',
+  'A-Tier': 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100',
+  'B-Tier': 'bg-stone-200 text-stone-800 dark:bg-stone-700 dark:text-stone-100',
+  'C-Tier': 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300',
+};
+
+export const TierBadge = ({ tier }: { tier: string }) => (
+  <span
+    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${TIER_STYLE[tier] ?? 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'}`}
+  >
+    {tier.replace('-Tier', '')}
+  </span>
 );

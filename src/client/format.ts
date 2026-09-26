@@ -45,6 +45,7 @@ export async function postJson<T>(url: string, payload: unknown): Promise<T> {
 export type Page =
   | { kind: 'player'; name: string }
   | { kind: 'tournament'; name: string }
+  | { kind: 'nation'; name: string }
   | { kind: 'compare'; a: string; b: string };
 
 const isName = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= 100;
@@ -52,7 +53,7 @@ const isName = (v: unknown): v is string => typeof v === 'string' && v.trim().le
 /** Validates a page read from storage or from a shared link (both can be tampered with). */
 export function toPage(value: unknown): Page | null {
   if (typeof value !== 'object' || value === null || !('kind' in value)) return null;
-  if ((value.kind === 'player' || value.kind === 'tournament') && 'name' in value && isName(value.name)) {
+  if ((value.kind === 'player' || value.kind === 'tournament' || value.kind === 'nation') && 'name' in value && isName(value.name)) {
     return { kind: value.kind, name: value.name };
   }
   if (value.kind === 'compare' && 'a' in value && 'b' in value && isName(value.a) && isName(value.b)) {
@@ -104,6 +105,51 @@ const CIV_NAMES: Record<string, string> = {
   order_of_the_dragon: 'Order of the Dragon',
   house_of_lancaster: 'House of Lancaster',
   holy_roman_empire: 'Holy Roman Empire',
+};
+
+/** Short label for long civ names (full name stays in the tooltip). */
+const CIV_SHORT: Record<string, string> = {
+  holy_roman_empire: 'HRE',
+  abbasid_dynasty: 'Abbasid',
+  delhi_sultanate: 'Delhi',
+  order_of_the_dragon: 'OotD',
+  zhu_xis_legacy: 'ZXL',
+  jeanne_darc: 'Jeanne',
+  house_of_lancaster: 'Lancaster',
+  knights_templar: 'Templars',
+  macedonian_dynasty: 'Macedonians',
+  sengoku_daimyo: 'Sengoku',
+  tughlaq_dynasty: 'Tughlaq',
+  jin_dynasty: 'Jin',
+};
+
+export const civShort = (id: string): string => CIV_SHORT[id] ?? civName(id);
+
+/** AoE4World civ id -> flag file in src/client/assets/civs. */
+export const CIV_FLAG_FILE: Record<string, string> = {
+  english: 'english',
+  french: 'french',
+  holy_roman_empire: 'hre',
+  rus: 'rus',
+  mongols: 'mongols',
+  chinese: 'chinese',
+  delhi_sultanate: 'delhi',
+  abbasid_dynasty: 'abbasid',
+  ottomans: 'ottomans',
+  malians: 'malians',
+  japanese: 'japanese',
+  byzantines: 'byzantines',
+  ayyubids: 'ayyubids',
+  jeanne_darc: 'jeannedarc',
+  order_of_the_dragon: 'orderofthedragon',
+  zhu_xis_legacy: 'zhuxi',
+  house_of_lancaster: 'lancaster',
+  knights_templar: 'templar',
+  golden_horde: 'goldenhorde',
+  macedonian_dynasty: 'macedonian',
+  sengoku_daimyo: 'sengoku',
+  tughlaq_dynasty: 'tughlaq',
+  jin_dynasty: 'jindynasty',
 };
 
 export const civName = (id: string): string =>

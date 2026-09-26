@@ -1,19 +1,24 @@
 import { Hono, type Context } from 'hono';
 import {
+  classifyStage,
   headToHead,
   nameKey,
   predictSeries,
   unpackMatch,
   type Match,
   type PackedMatch,
+  type TournamentDetail,
   type TournamentSummary,
 } from '../../shared/atr';
 import type {
   Aoe4WorldResponse,
   BoardResponse,
   ErrorResponse,
+  FanFlairRequest,
+  FanFlairResponse,
   H2HResponse,
   MeResponse,
+  NationResponse,
   PlayerResponse,
   PredictRequest,
   PredictResponse,
@@ -22,13 +27,17 @@ import type {
   TournamentResponse,
   TournamentsResponse,
 } from '../../shared/api';
-import { reddit } from '@devvit/web/server';
+import { context, reddit, settings } from '@devvit/web/server';
+import { fanFlairText } from '../../shared/countries';
 import { getAoe4WorldProfile } from '../core/aoe4world';
 import { PREDICTOR_USERS } from '../core/config';
 import {
   readBoard,
   readMatches,
+  readNationStats,
+  readRanks,
   readRecords,
+  readTitles,
   readSyncStatus,
   readTop10,
   readTournament,
@@ -56,7 +65,45 @@ async function canPredict(): Promise<boolean> {
   }
 }
 
-api.get('/me', async (c) => c.json<MeResponse>({ predictor: await canPredict() }));
+async function fanFlairAllowed(): Promise<boolean> {
+  const value = await settings.get<boolean>('allowFanFlair');
+  return value !== false;
+}
+
+api.get('/me', async (c) => {
+  const [predictor, username, allowed] = await Promise.all([
+    canPredict(),
+    reddit.getCurrentUsername().catch(() => undefined),
+    fanFlairAllowed(),
+  ]);
+  return c.json<MeResponse>({ predictor, fanFlair: Boolean(username) && allowed });
+});
+
+/**
+ * Sets (or removes, with player = null) the viewer's "<player> fan" user flair.
+ * Nothing is stored by the app: the flair lives on Reddit like any other user flair.
+ */
+api.post('/fan-flair', async (c) => {
+  const body = await c.req.json<FanFlairRequest>().catch(() => null);
+  const username = await reddit.getCurrentUsername().catch(() => undefined);
+  const subredditName = context.subredditName;
+  if (!username || !subredditName) {
+    return c.json<ErrorResponse>({ status: 'error', message: 'Log in to Reddit to set a flair' }, 401);
+  }
+  if (!(await fanFlairAllowed())) {
+    return c.json<ErrorResponse>({ status: 'error', message: 'Fan flairs are turned off in this community' }, 403);
+  }
+  if (!body?.player) {
+    await reddit.removeUserFlair(subredditName, username);
+    return c.json<FanFlairResponse>({ flair: null });
+  }
+  const board = await readBoard();
+  const row = board?.rows.find((r) => nameKey(r.name) === nameKey(String(body.player)));
+  if (!row) return c.json<ErrorResponse>({ status: 'error', message: 'Unknown player' }, 404);
+  const text = fanFlairText(row.name, row.country);
+  await reddit.setUserFlair({ subredditName, username, text, backgroundColor: '#d97706', textColor: 'light' });
+  return c.json<FanFlairResponse>({ flair: text });
+});
 
 api.get('/board', async (c) => {
   const [board, lastSync] = await Promise.all([readBoard(), readSyncStatus()]);
@@ -111,13 +158,41 @@ api.post('/predict', async (c) => {
 api.get('/player', async (c) => {
   const name = (c.req.query('name') ?? '').trim();
   if (!name) return c.json<ErrorResponse>({ status: 'error', message: 'name is required' }, 400);
-  const [board, raw, top10] = await Promise.all([readBoard(), readMatches(nameKey(name)), readTop10()]);
+  const [board, raw, top10, allTitles, ranks] = await Promise.all([
+    readBoard(),
+    readMatches(nameKey(name)),
+    readTop10(),
+    readTitles(),
+    readRanks(nameKey(name)),
+  ]);
   const row = board?.rows.find((r) => nameKey(r.name) === nameKey(name)) ?? null;
   const matches = raw ? (JSON.parse(raw) as PackedMatch[]) : [];
   if (!row && matches.length === 0) {
     return c.json<ErrorResponse>({ status: 'error', message: `No player called "${name}" in the ATR` }, 404);
   }
-  return c.json<PlayerResponse>({ row, name: row?.name ?? name, matches, top10 });
+  const titles = allTitles.filter((t) => nameKey(t.champion) === nameKey(name));
+  return c.json<PlayerResponse>({ row, name: row?.name ?? name, matches, top10, titles, ranks });
+});
+
+api.get('/nation', async (c) => {
+  const country = (c.req.query('country') ?? '').trim();
+  const board = await readBoard();
+  if (!board) return notSynced(c);
+  const players = board.rows
+    .filter((r) => r.country.toLowerCase() === country.toLowerCase())
+    .sort((a, b) => Number(b.active) - Number(a.active) || b.elo - a.elo);
+  if (!country || players.length === 0) {
+    return c.json<ErrorResponse>({ status: 'error', message: `No ATR player from "${country}"` }, 404);
+  }
+  const name = players[0]!.country;
+  const keys = new Set(players.map((p) => nameKey(p.name)));
+  const [stats, titles] = await Promise.all([readNationStats(name), readTitles()]);
+  return c.json<NationResponse>({
+    country: name,
+    players,
+    stats,
+    titles: titles.filter((t) => keys.has(nameKey(t.champion))),
+  });
 });
 
 api.get('/tournaments', async (c) => {
@@ -128,9 +203,11 @@ api.get('/tournaments', async (c) => {
 
 api.get('/tournament', async (c) => {
   const name = c.req.query('name') ?? '';
-  const raw = name ? await readTournament(name) : null;
+  const [raw, titles] = await Promise.all([name ? readTournament(name) : null, readTitles()]);
   if (!raw) return c.json<ErrorResponse>({ status: 'error', message: `No tournament called "${name}" in the ATR` }, 404);
-  return c.json<TournamentResponse>(JSON.parse(raw) as TournamentResponse);
+  const event = classifyStage(name).event;
+  const title = titles.find((t) => t.stage === name) ?? titles.find((t) => t.event === event) ?? null;
+  return c.json<TournamentResponse>({ ...(JSON.parse(raw) as TournamentDetail), title });
 });
 
 api.get('/h2h', async (c) => {

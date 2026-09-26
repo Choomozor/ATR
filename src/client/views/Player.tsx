@@ -11,13 +11,16 @@ import {
   unpackMatch,
   type BoardRow,
   type Match,
+  type Title,
 } from '../../shared/atr';
-import type { Aoe4WorldResponse, PlayerResponse } from '../../shared/api';
-import { EloChart } from '../EloChart';
+import type { Aoe4WorldResponse, FanFlairResponse, PlayerResponse } from '../../shared/api';
+import { CivFlag } from '../CivFlag';
+import { EloChart, RankChart } from '../EloChart';
 import { Flag } from '../Flag';
-import { civName, getJson, pct, rateTone, shortDate } from '../format';
+import { civName, civShort, getJson, pct, postJson, rateTone, shortDate } from '../format';
+import { fanFlairText } from '../../shared/countries';
 import { sharePage } from '../share';
-import { BackButton, Chip, Delta, MatchList, Section, Spinner, Tile, WinRate, type Nav } from '../ui';
+import { BackButton, Chip, Delta, MatchList, Section, Spinner, TierBadge, Tile, WinRate, type Nav } from '../ui';
 
 type Period = 'all' | '12m' | 'year';
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -103,7 +106,10 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
           <ul className="mt-1 space-y-1">
             {main.civs.map((c) => (
               <li key={c.civ} className="flex items-center gap-2 text-sm">
-                <span className="min-w-0 flex-1 truncate">{civName(c.civ)}</span>
+                <CivFlag civ={c.civ} />
+                <span className="min-w-0 flex-1 truncate font-medium" title={civName(c.civ)}>
+                  {civShort(c.civ)}
+                </span>
                 <span className="w-16 text-right text-xs text-stone-500 tabular-nums">{c.games} games</span>
                 <span className="w-10 text-right text-xs font-semibold tabular-nums">
                   <WinRate rate={c.winRate / 100} />
@@ -249,6 +255,100 @@ export const H2HBox = ({
   );
 };
 
+// ------------------------------------------------------------------ fan flair
+
+/** "🇫🇷 MarineLorD fan" as the viewer's user flair. Two steps, since it replaces their current flair. */
+const FanFlair = ({ player, country }: { player: string; country: string }) => {
+  const [step, setStep] = useState<'idle' | 'confirm' | 'busy' | 'done'>('idle');
+  const text = fanFlairText(player, country);
+
+  const send = async (value: string | null) => {
+    setStep('busy');
+    try {
+      const res = await postJson<FanFlairResponse>('/api/fan-flair', { player: value });
+      showToast(res.flair ? `Your flair is now "${res.flair}"` : 'Your flair was removed');
+      setStep(res.flair ? 'done' : 'idle');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not change your flair');
+      setStep('idle');
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-white p-3 text-sm ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] font-medium uppercase tracking-wide text-stone-500">Supporting {player}?</span>
+        <span className="mt-0.5 inline-block rounded bg-amber-600 px-1.5 py-0.5 text-xs font-semibold text-white">{text}</span>
+        <span className="ml-1.5 text-xs text-stone-500">as your user flair</span>
+      </span>
+      {step === 'idle' && (
+        <button
+          onClick={() => setStep('confirm')}
+          className="rounded-full px-3 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-stone-800"
+        >
+          Wear it
+        </button>
+      )}
+      {step === 'confirm' && (
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">Replaces your current flair</span>
+          <button
+            onClick={() => void send(player)}
+            className="rounded-full bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+          >
+            Confirm
+          </button>
+          <button onClick={() => setStep('idle')} className="text-xs text-stone-500 hover:underline">
+            Cancel
+          </button>
+        </span>
+      )}
+      {step === 'busy' && <span className="text-xs text-stone-500">Saving…</span>}
+      {step === 'done' && (
+        <button onClick={() => void send(null)} className="text-xs text-stone-500 hover:underline">
+          Remove my flair
+        </button>
+      )}
+    </div>
+  );
+};
+
+// ------------------------------------------------------------------ titles
+
+const TitleList = ({ titles, nav }: { titles: Title[]; nav: Nav }) => {
+  const [all, setAll] = useState(false);
+  const shown = all ? titles : titles.slice(0, 5);
+  return (
+    <Section title="Titles" aside={<span className="text-xs text-stone-500">tournaments won</span>}>
+      <ul className="divide-y divide-stone-200 overflow-hidden rounded-lg bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
+        {shown.map((t) => (
+          <li key={`${t.stage}-${t.date}`}>
+            <button
+              onClick={() => nav.tournament(t.stage)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-amber-50 dark:hover:bg-stone-800"
+            >
+              <span aria-hidden>🏆</span>
+              <TierBadge tier={t.tier} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">{t.event}</span>
+                <span className="block truncate text-xs text-stone-500">
+                  beat {t.runnerUp} {t.score} in the final
+                </span>
+              </span>
+              <span className="shrink-0 text-xs text-stone-500">{shortDate(t.date)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {titles.length > 5 && (
+        <button onClick={() => setAll(!all)} className="mt-2 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400">
+          {all ? 'Show fewer' : `Show all ${titles.length} titles`}
+        </button>
+      )}
+    </Section>
+  );
+};
+
 // ------------------------------------------------------------------ player page
 
 export const PlayerView = ({
@@ -257,12 +357,14 @@ export const PlayerView = ({
   onBack,
   backLabel,
   nav,
+  canFlair = false,
 }: {
   name: string;
   board: Map<string, BoardRow>;
   onBack: () => void;
   backLabel: string;
   nav: Nav;
+  canFlair?: boolean;
 }) => {
   const [data, setData] = useState<PlayerResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -286,6 +388,14 @@ export const PlayerView = ({
     [data, inPeriod]
   );
   const history = useMemo(() => ratingHistory(inPeriod), [inPeriod]);
+  const ranks = useMemo(() => {
+    const from = periodStart(period)?.slice(0, 7);
+    return (data?.ranks ?? []).filter(([ym]) => !from || ym >= from);
+  }, [data, period]);
+  const titles = useMemo(() => {
+    const from = periodStart(period);
+    return (data?.titles ?? []).filter((t) => !from || t.date >= from);
+  }, [data, period]);
 
   const row = data?.row ?? null;
 
@@ -314,10 +424,17 @@ export const PlayerView = ({
         <>
           <header className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-xs text-stone-500">
-                {row?.country && <Flag country={row.country} />}
-                {[row?.country, row?.subRegion].filter(Boolean).join(' · ') || 'Country unknown'}
-              </p>
+              {row?.country ? (
+                <button
+                  onClick={() => nav.nation(row.country)}
+                  className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-amber-700 hover:underline dark:hover:text-amber-400"
+                >
+                  <Flag country={row.country} />
+                  {[row.country, row.subRegion].filter(Boolean).join(' · ')}
+                </button>
+              ) : (
+                <p className="text-xs text-stone-500">Country unknown</p>
+              )}
               <h2 className="truncate text-2xl font-bold">{data.name}</h2>
               <p className="text-sm text-stone-500">
                 {row?.active ? `#${row.rank} active` : 'Inactive'} · last series {shortDate(all[all.length - 1]?.date)}
@@ -347,6 +464,8 @@ export const PlayerView = ({
             </div>
           </header>
 
+          {canFlair && row && <FanFlair player={row.name} country={row.country} />}
+
           <div className="mt-4 flex gap-1.5">
             <Chip active={period === 'all'} onClick={() => setPeriod('all')}>
               All time
@@ -362,6 +481,22 @@ export const PlayerView = ({
           <Section title="Tournament Elo">
             <EloChart points={history} />
           </Section>
+
+          {ranks.length > 1 && (
+            <Section
+              title="Rank over time"
+              aside={
+                ranks.length > 1 && (
+                  <span className="text-xs text-stone-500 tabular-nums">
+                    #{ranks[0]![1]} → #{ranks[ranks.length - 1]![1]}
+                    {period === 'all' ? ' since first ranked' : period === '12m' ? ' in 12 months' : ` in ${today().slice(0, 4)}`}
+                  </span>
+                )
+              }
+            >
+              <RankChart points={ranks} />
+            </Section>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Tile label="Series win rate" value={<WinRate rate={s.series.winRate} />} sub={`${s.series.wins}W – ${s.series.losses}L`} />
@@ -382,7 +517,11 @@ export const PlayerView = ({
               sub={s.streak?.result === 'W' ? 'series won in a row' : s.streak ? 'series lost in a row' : undefined}
             />
             <Tile label="Tournaments" value={s.tournaments} sub={s.firstMatch ? `since ${shortDate(s.firstMatch)}` : undefined} />
-            <Tile label="Series played" value={s.series.wins + s.series.losses + s.series.draws} />
+            <Tile
+              label="Titles"
+              value={titles.length ? `🏆 ${titles.length}` : '–'}
+              sub={titles.length ? `${titles.filter((t) => t.tier === 'S-Tier').length} S-Tier` : 'no tournament won'}
+            />
             <Tile
               label="Best win streak"
               value={s.bestStreak?.count ?? '–'}
@@ -421,6 +560,8 @@ export const PlayerView = ({
               ))}
             </div>
           )}
+
+          {titles.length > 0 && <TitleList titles={titles} nav={nav} />}
 
           {s.byTier.length > 0 && (
             <Section title="By tournament tier">
