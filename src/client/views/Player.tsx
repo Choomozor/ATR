@@ -15,8 +15,8 @@ import {
 import type { Aoe4WorldResponse, PlayerResponse } from '../../shared/api';
 import { EloChart } from '../EloChart';
 import { Flag } from '../Flag';
-import { getJson, pct, shortDate } from '../format';
-import { BackButton, Chip, Delta, MatchList, Section, Spinner, Tile, WinRate, rateTone, type Nav } from '../ui';
+import { getJson, pct, rateTone, shortDate } from '../format';
+import { BackButton, Chip, Delta, MatchList, Section, Spinner, Tile, WinRate, type Nav } from '../ui';
 
 type Period = 'all' | '12m' | 'year';
 const today = (): string => new Date().toISOString().slice(0, 10);

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Match } from '../shared/atr';
-import { pct, shortDate } from './format';
+import { pct, rateTone, shortDate } from './format';
 
 export const Delta = ({ value, digits = 0 }: { value: number; digits?: number }) =>
   value === 0 ? (
@@ -41,14 +41,6 @@ export const ResultBadge = ({ r }: { r: Match['result'] }) => (
 );
 
 /** Recent results as dots, oldest on the left. */
-/** Green above 50%, red below, default ink at exactly 50% or with no decided series. */
-export const rateTone = (rate: number | null | undefined): string =>
-  rate === null || rate === undefined || Math.round(rate * 1000) === 500
-    ? ''
-    : rate > 0.5
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : 'text-rose-600 dark:text-rose-400';
-
 export const WinRate = ({ rate }: { rate: number | null | undefined }) => (
   <span className={rateTone(rate)}>{pct(rate)}</span>
 );

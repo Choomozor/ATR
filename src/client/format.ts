@@ -38,3 +38,11 @@ export const takeOpenPlayer = (): string | null => {
     return null;
   }
 };
+
+/** Green above 50%, red below, default ink at exactly 50% or with no decided series. */
+export const rateTone = (rate: number | null | undefined): string =>
+  rate === null || rate === undefined || Math.round(rate * 1000) === 500
+    ? ''
+    : rate > 0.5
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-rose-600 dark:text-rose-400';

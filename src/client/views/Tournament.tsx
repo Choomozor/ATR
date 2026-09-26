@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TournamentSummary } from '../../shared/atr';
 import type { TournamentResponse, TournamentsResponse } from '../../shared/api';
-import { getJson, shortDate } from '../format';
-import { BackButton, Chip, Delta, Section, Spinner, rateTone, type Nav } from '../ui';
+import { getJson, rateTone, shortDate } from '../format';
+import { BackButton, Chip, Delta, Section, Spinner, type Nav } from '../ui';
 
 const TIER_STYLE: Record<string, string> = {
   'S-Tier': 'bg-amber-600 text-white',
