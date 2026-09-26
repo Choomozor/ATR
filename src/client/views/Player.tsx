@@ -215,7 +215,15 @@ export const H2HBox = ({
       ) : (
         <>
           <div className="mb-3 flex items-center justify-between rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
-            <span className="w-1/3 truncate font-semibold">{player}</span>
+            <span className="w-1/3 min-w-0">
+              <span className="block truncate font-semibold">{player}</span>
+              <span className="block text-xs text-stone-500 tabular-nums">
+                <span className="text-base font-bold">
+                  <WinRate rate={h.series.winRate} />
+                </span>{' '}
+                series · <WinRate rate={h.maps.winRate} /> maps
+              </span>
+            </span>
             <span className="text-center">
               <span className={`text-2xl font-bold tabular-nums ${rateTone(h.series.winRate)}`}>
                 {h.series.wins} – {h.series.losses}
@@ -224,8 +232,14 @@ export const H2HBox = ({
                 all time · maps {h.maps.won}–{h.maps.lost}
               </span>
             </span>
-            <button className="w-1/3 truncate text-right font-semibold hover:underline" onClick={() => nav.player(h.opponent)}>
-              {h.opponent}
+            <button className="w-1/3 min-w-0 text-right" onClick={() => nav.player(h.opponent)}>
+              <span className="block truncate font-semibold hover:underline">{h.opponent}</span>
+              <span className="block text-xs text-stone-500 tabular-nums">
+                <span className="text-base font-bold">
+                  <WinRate rate={h.series.winRate === null ? null : 1 - h.series.winRate} />
+                </span>{' '}
+                series · <WinRate rate={h.maps.winRate === null ? null : 1 - h.maps.winRate} /> maps
+              </span>
             </button>
           </div>
           <MatchList matches={h.matches} nav={nav} />
