@@ -33,14 +33,14 @@ menu.post('/link-player', async (c) => {
       form: {
         title: 'Link an ATR player to AoE4World',
         description:
-          'Use this when the automatic match picks the wrong AoE4World profile. Leave the profile empty to go back to automatic matching.',
+          'Paste every account of the player (main and smurfs): links or IDs, one per line or separated by commas. This replaces the accounts linked before. Leave it empty to go back to automatic matching by name.',
         acceptLabel: 'Save',
         fields: [
           { type: 'string', name: 'atrName', label: 'Player name exactly as in the ATR', required: true },
           {
-            type: 'string',
+            type: 'paragraph',
             name: 'profile',
-            label: 'AoE4World profile URL or ID (e.g. https://aoe4world.com/players/1102458)',
+            label: 'AoE4World profile links or IDs (e.g. https://aoe4world.com/players/1102458)',
           },
         ],
       },

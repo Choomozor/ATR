@@ -44,15 +44,16 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
 
   if (failed) return <p className="text-sm text-stone-500">AoE4World is unavailable right now.</p>;
   if (!data) return <p className="text-sm text-stone-500">Looking up AoE4World…</p>;
-  if (!data.found) return <p className="text-sm text-stone-500">No matching AoE4World profile found.</p>;
+  const [main, ...others] = data.accounts ?? [];
+  if (!data.found || !main) return <p className="text-sm text-stone-500">No matching AoE4World profile found.</p>;
 
   return (
     <div className="rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate font-semibold">{data.name}</p>
+        <p className="truncate font-semibold">{main.name}</p>
         <button
           className="shrink-0 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400"
-          onClick={() => data.url && navigateTo(data.url)}
+          onClick={() => navigateTo(main.url)}
         >
           Open on AoE4World ↗
         </button>
@@ -60,24 +61,43 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
         <div>
           <p className="text-[11px] uppercase text-stone-500">Ranked 1v1</p>
-          <p className="font-bold tabular-nums">{data.soloRating ?? '–'}</p>
+          <p className="font-bold tabular-nums">{main.soloRating ?? '–'}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase text-stone-500">Ladder rank</p>
-          <p className="font-bold tabular-nums">{data.soloRank ? `#${data.soloRank}` : '–'}</p>
+          <p className="font-bold tabular-nums">{main.soloRank ? `#${main.soloRank}` : '–'}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase text-stone-500">Win rate</p>
-          <p className="font-bold tabular-nums">
-            {data.soloWinRate !== null && data.soloWinRate !== undefined ? `${Math.round(data.soloWinRate)}%` : '–'}
-          </p>
+          <p className="font-bold tabular-nums">{main.soloWinRate !== null ? `${Math.round(main.soloWinRate)}%` : '–'}</p>
         </div>
       </div>
       <p className="mt-2 text-[11px] text-stone-500">
-        {data.soloRankLevel ? `${data.soloRankLevel.replace('_', ' ')} · ` : ''}
-        {data.soloGames ?? 0} games this season
-        {data.linked ? ' · profile set by the mods' : ' · matched automatically by name'}
+        {main.soloRankLevel ? `${main.soloRankLevel.replace('_', ' ')} · ` : ''}
+        {main.soloGames ?? 0} games this season
+        {data.linked ? '' : ' · matched automatically by name'}
       </p>
+      {others.length > 0 && (
+        <ul className="mt-3 divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-800 dark:border-stone-800">
+          {others.map((acc) => (
+            <li key={acc.profileId}>
+              <button
+                onClick={() => navigateTo(acc.url)}
+                className="flex w-full items-center gap-2 py-1.5 text-left text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate">{acc.name}</span>
+                <span className="text-xs text-stone-500 tabular-nums">{acc.soloRank ? `#${acc.soloRank}` : 'unranked'}</span>
+                <span className="w-12 text-right font-mono tabular-nums">{acc.soloRating ?? '–'}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {data.linked && (
+        <p className="mt-2 text-[11px] text-stone-500">
+          {data.accounts.length > 1 ? `${data.accounts.length} accounts, best rating first` : 'Account'} · set by the mods
+        </p>
+      )}
     </div>
   );
 };

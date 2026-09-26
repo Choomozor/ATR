@@ -33,19 +33,24 @@ export type TournamentResponse = TournamentDetail;
 
 export type H2HResponse = HeadToHead;
 
+export type Aoe4WorldAccount = {
+  profileId: number;
+  name: string;
+  url: string;
+  soloRating: number | null;
+  soloRank: number | null;
+  soloRankLevel: string | null;
+  soloWinRate: number | null;
+  soloGames: number | null;
+  lastGameAt: string | null;
+};
+
 export type Aoe4WorldResponse = {
   found: boolean;
-  /** true when a moderator linked this profile by hand. */
-  linked?: boolean;
-  profileId?: number;
-  name?: string;
-  url?: string;
-  soloRating?: number | null;
-  soloRank?: number | null;
-  soloRankLevel?: string | null;
-  soloWinRate?: number | null;
-  soloGames?: number | null;
-  lastGameAt?: string | null;
+  /** true when moderators linked the accounts by hand. */
+  linked: boolean;
+  /** Main account and smurfs, best ranked 1v1 rating first. */
+  accounts: Aoe4WorldAccount[];
 };
 
 export type ErrorResponse = { status: 'error'; message: string };
