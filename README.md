@@ -21,7 +21,7 @@ After installing the app, three items appear in the subreddit's mod menu (⋯ on
 | **ATR: create ranking post** | Posts the interactive ranking. Pin it or add it to a wiki/sidebar link. |
 | **ATR: sync data now** | Re-reads the ATR sheet right away (it also runs automatically every 3 hours and on install/upgrade). |
 | **ATR: post update summary** | Posts the summary of the latest ATR update now. |
-| **ATR: link player to AoE4World** | Sets a player's AoE4World accounts by hand: paste the links of the main account and any smurfs. The player page shows all of them, best rating first. Leave it empty to go back to automatic matching by name. |
+| **ATR: link player to AoE4World** | Fixes a wrong AoE4World match: paste the player's main account link. Smurfs linked on the AoE4World site are picked up automatically and shown under "Other accounts", best rating first. Leave it empty to go back to automatic matching by name. |
 | **ATR: load bundled data (testing)** | Loads the copy of the sheet saved with `npm run snapshot`, for use before `docs.google.com` is approved. |
 
 In the app's settings for the subreddit, **"Post a summary automatically each time the ATR sheet is updated"** turns on the automatic update post (off by default). It never posts on the first sync after install, and posts at most once per sheet update.

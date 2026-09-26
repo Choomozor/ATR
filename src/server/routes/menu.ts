@@ -33,7 +33,7 @@ menu.post('/link-player', async (c) => {
       form: {
         title: 'Link an ATR player to AoE4World',
         description:
-          'Paste every account of the player (main and smurfs): links or IDs, one per line or separated by commas. This replaces the accounts linked before. Leave it empty to go back to automatic matching by name.',
+          'Use this when the app picks the wrong AoE4World profile. Paste the player\'s main account (smurfs linked on AoE4World are added automatically), or several accounts, one per line. This replaces the accounts linked before. Leave it empty to go back to automatic matching by name.',
         acceptLabel: 'Save',
         fields: [
           { type: 'string', name: 'atrName', label: 'Player name exactly as in the ATR', required: true },

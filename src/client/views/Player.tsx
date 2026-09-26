@@ -75,10 +75,13 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
       <p className="mt-2 text-[11px] text-stone-500">
         {main.soloRankLevel ? `${main.soloRankLevel.replace('_', ' ')} · ` : ''}
         {main.soloGames ?? 0} games this season
-        {data.linked ? '' : ' · matched automatically by name'}
+        {data.linked ? '' : ' · found by name'}
       </p>
       {others.length > 0 && (
-        <ul className="mt-3 divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-800 dark:border-stone-800">
+        <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-stone-500">Other accounts</p>
+      )}
+      {others.length > 0 && (
+        <ul className="mt-1 divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-800 dark:border-stone-800">
           {others.map((acc) => (
             <li key={acc.profileId}>
               <button
@@ -95,7 +98,7 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
       )}
       {data.linked && (
         <p className="mt-2 text-[11px] text-stone-500">
-          {data.accounts.length > 1 ? `${data.accounts.length} accounts, best rating first` : 'Account'} · set by the mods
+          Main account set by the mods
         </p>
       )}
     </div>

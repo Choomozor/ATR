@@ -55,12 +55,35 @@ async function fetchAccount(id: string): Promise<Aoe4WorldAccount | null> {
 
 const byRating = (a: Aoe4WorldAccount, b: Aoe4WorldAccount): number => (b.soloRating ?? -1) - (a.soloRating ?? -1);
 
+/**
+ * Accounts linked on the AoE4World site (main + smurfs). The documented way to get them is the
+ * games endpoint with include_alts: its filters list every linked profile id.
+ */
+async function linkedProfileIds(id: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${AOE4WORLD_API}/players/${encodeURIComponent(id)}/games?include_alts=true&limit=1`, {
+      headers: HEADERS,
+    });
+    if (!res.ok) return [id];
+    const body = (await res.json()) as { filters?: { profile_ids?: number[] } };
+    const ids = (body.filters?.profile_ids ?? []).map(String);
+    return ids.includes(id) ? ids : [id, ...ids];
+  } catch {
+    return [id];
+  }
+}
+
+async function accountsFor(ids: string[]): Promise<Aoe4WorldAccount[]> {
+  const expanded = [...new Set((await Promise.all(ids.map(linkedProfileIds))).flat())].slice(0, 8);
+  const accounts = (await Promise.all(expanded.map(fetchAccount))).filter((a): a is Aoe4WorldAccount => a !== null);
+  return accounts.sort(byRating);
+}
+
 async function lookup(atrName: string): Promise<Aoe4WorldResponse> {
   const linked = await redis.hGet(KEY_AOE4WORLD_LINKS, nameKey(atrName));
   if (linked) {
-    const ids = linked.split(',').filter(Boolean);
-    const accounts = (await Promise.all(ids.map(fetchAccount))).filter((a): a is Aoe4WorldAccount => a !== null);
-    return { found: accounts.length > 0, linked: true, accounts: accounts.sort(byRating) };
+    const accounts = await accountsFor(linked.split(',').filter(Boolean));
+    return { found: accounts.length > 0, linked: true, accounts };
   }
 
   const res = await fetch(`${AOE4WORLD_API}/players/search?query=${encodeURIComponent(atrName)}`, {
@@ -69,9 +92,11 @@ async function lookup(atrName: string): Promise<Aoe4WorldResponse> {
   if (!res.ok) throw new Error(`AoE4World HTTP ${res.status}`);
   const body = (await res.json()) as { players?: SearchPlayer[] };
   const best = pickAoe4WorldProfile(body.players ?? [], atrName);
-  return best
-    ? { found: true, linked: false, accounts: [toAccount(best, best.leaderboards?.rm_solo)] }
-    : { found: false, linked: false, accounts: [] };
+  if (!best) return { found: false, linked: false, accounts: [] };
+  const accounts = await accountsFor([String(best.profile_id)]);
+  return accounts.length
+    ? { found: true, linked: false, accounts }
+    : { found: true, linked: false, accounts: [toAccount(best, best.leaderboards?.rm_solo)] };
 }
 
 export async function getAoe4WorldProfile(atrName: string): Promise<Aoe4WorldResponse> {
