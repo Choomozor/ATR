@@ -1,5 +1,5 @@
 import { showToast } from '@devvit/web/client';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   addDays,
   computeStats,
