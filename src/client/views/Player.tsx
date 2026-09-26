@@ -6,9 +6,9 @@ import {
   filterByPeriod,
   headToHead,
   nameKey,
+  predictSeries,
   ratingHistory,
   unpackMatch,
-  winProbability,
   type BoardRow,
   type Match,
 } from '../../shared/atr';
@@ -136,13 +136,13 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
 
 // ------------------------------------------------------------------ head-to-head
 
-const WinChance = ({ a, b, eloA, eloB }: { a: string; b: string; eloA: number; eloB: number }) => {
-  const pa = winProbability(eloA, eloB);
+const WinChance = ({ a, b, eloA, eloB, matches }: { a: string; b: string; eloA: number; eloB: number; matches: Match[] }) => {
+  const p = predictSeries(eloA, eloB, matches, today());
+  const pa = p.probability;
+  const decided = p.weightedWins + p.weightedLosses > 0;
   return (
     <div className="mb-3 rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-stone-500">
-        Win chance for a series today (from Tournament Elo)
-      </p>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-stone-500">Win chance for a series today</p>
       <div className="flex items-center gap-2 text-sm font-semibold tabular-nums">
         <span className="w-10 text-right">{Math.round(pa * 100)}%</span>
         <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
@@ -160,6 +160,17 @@ const WinChance = ({ a, b, eloA, eloB }: { a: string; b: string; eloA: number; e
           {b} · {Math.round(eloB)}
         </span>
       </div>
+      <p className="mt-2 text-[11px] text-stone-500">
+        Elo alone: {Math.round(p.eloProbability * 100)}% for {a}
+        {decided && p.h2hShift !== 0 && (
+          <>
+            {' · '}
+            head-to-head {p.h2hShift > 0 ? '+' : '−'}
+            {Math.abs(p.h2hShift)} pts
+          </>
+        )}
+        {decided ? ' (recent series count more than old ones)' : ' (no head-to-head yet)'}
+      </p>
     </div>
   );
 };
@@ -182,7 +193,9 @@ const H2HBox = ({
   const rowB = board.get(nameKey(opponent));
   return (
     <>
-      {rowA && rowB && <WinChance a={rowA.name} b={rowB.name} eloA={rowA.elo} eloB={rowB.elo} />}
+      {rowA && rowB && (
+        <WinChance a={rowA.name} b={rowB.name} eloA={rowA.elo} eloB={rowB.elo} matches={h.matches} />
+      )}
       {h.matches.length === 0 ? (
         <p className="text-sm text-stone-500">
           No tournament series between {player} and {opponent} in the ATR.

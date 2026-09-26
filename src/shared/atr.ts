@@ -707,3 +707,52 @@ export function buildDigest(rows: BoardRow[], sheetDate: string, upsets: Upset[]
 
   return { sheetDate, title: `ATR Tournament Elo update: ${fmtDate(sheetDate)}`, text: lines.join('\n') };
 }
+
+// ---------------------------------------------------------------- series prediction
+
+export type Prediction = {
+  /** Chance that A wins a series against B. */
+  probability: number;
+  /** What the Elo difference alone says. */
+  eloProbability: number;
+  /** Head-to-head record weighted by recency (a series one half-life old counts half). */
+  weightedWins: number;
+  weightedLosses: number;
+  /** How much the head-to-head moved the prediction away from Elo alone, in points of %. */
+  h2hShift: number;
+};
+
+/** A series this many days old counts half as much as one played today. */
+export const H2H_HALF_LIFE_DAYS = 365;
+/** Weight of the Elo estimate, in "virtual series": with little or old head-to-head, Elo dominates. */
+export const ELO_PRIOR_SERIES = 3;
+
+/**
+ * Elo expectation adjusted by the head-to-head: the recency-weighted record between the two
+ * players is blended with the Elo estimate, which acts as ELO_PRIOR_SERIES virtual series.
+ * `matches` are A's series against B (any order).
+ */
+export function predictSeries(eloA: number, eloB: number, matches: Match[], today: string): Prediction {
+  const eloProbability = winProbability(eloA, eloB);
+  const now = Date.parse(`${today}T00:00:00Z`);
+  let wins = 0;
+  let losses = 0;
+  for (const m of matches) {
+    const ageDays = Math.max(0, (now - Date.parse(`${m.date}T00:00:00Z`)) / 86_400_000);
+    const weight = Math.pow(0.5, ageDays / H2H_HALF_LIFE_DAYS);
+    if (m.result === 'W') wins += weight;
+    else if (m.result === 'L') losses += weight;
+    else {
+      wins += weight / 2;
+      losses += weight / 2;
+    }
+  }
+  const probability = (wins + ELO_PRIOR_SERIES * eloProbability) / (wins + losses + ELO_PRIOR_SERIES);
+  return {
+    probability,
+    eloProbability,
+    weightedWins: wins,
+    weightedLosses: losses,
+    h2hShift: Math.round((probability - eloProbability) * 100),
+  };
+}

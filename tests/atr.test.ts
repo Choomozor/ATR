@@ -17,6 +17,7 @@ import {
   nationRanking,
   findUpsets,
   buildDigest,
+  predictSeries,
 } from '../src/shared/atr.ts';
 
 // Real rows copied from the ATR sheet (Tournament ELO + TRDB), 2026-09-25.
@@ -212,4 +213,20 @@ test('nemesis and best matchup need at least 3 decided series', () => {
   const s = computeStats(parseTrdb(parseCsv(trdb)).get('me')!, { today: '2026-02-01' });
   assert.deepEqual(s.nemesis, { name: 'Strong', wins: 1, losses: 2, winRate: 1 / 3 });
   assert.deepEqual(s.bestMatchup, { name: 'Weak', wins: 3, losses: 0, winRate: 1 });
+});
+
+test('predictSeries: Elo alone without head-to-head, recent results weigh more', () => {
+  const none = predictSeries(2000, 2000, [], '2026-09-26');
+  assert.equal(none.probability, 0.5);
+  const mk = (date: string, result: 'W' | 'L') => ({
+    date, tournament: 'Cup', opponent: 'B', score: 2, opponentScore: 0, result, tier: 'S-Tier',
+    ratingAfter: 0, ratingChange: 0, ratingBefore: 0, opponentRatingBefore: 0,
+  });
+  const recentWins = predictSeries(2000, 2000, [mk('2026-09-20', 'W'), mk('2026-09-10', 'W'), mk('2026-08-01', 'W')], '2026-09-26');
+  const oldWins = predictSeries(2000, 2000, [mk('2022-09-20', 'W'), mk('2022-09-10', 'W'), mk('2022-08-01', 'W')], '2026-09-26');
+  assert.ok(recentWins.probability > 0.7, `recent ${recentWins.probability}`);
+  assert.ok(oldWins.probability < 0.55 && oldWins.probability > 0.5, `old ${oldWins.probability}`);
+  const mixed = predictSeries(2200, 2000, [mk('2026-09-01', 'L'), mk('2026-08-01', 'L')], '2026-09-26');
+  assert.ok(mixed.probability < mixed.eloProbability);
+  assert.ok(mixed.h2hShift < 0);
 });
