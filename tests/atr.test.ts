@@ -199,3 +199,17 @@ test('findUpsets and buildDigest describe an update', () => {
   assert.match(d.text, /\*\*Low\*\* \(1500\) beat \*\*High\*\* \(2100\) 2–1 in Cup/);
   assert.match(d.text, /example\.com\/post/);
 });
+
+test('nemesis and best matchup need at least 3 decided series', () => {
+  const trdb = `Date,Tournament,Target,Opponent,Target Score,Opponent Score,Winner,Tier,New TR rating,Rating Change
+2026-01-01,Cup,Me,Strong,0,2,0,A-Tier,1000,-10
+2026-01-02,Cup,Me,Strong,0,2,0,A-Tier,990,-10
+2026-01-03,Cup,Me,Strong,2,1,1,A-Tier,1000,10
+2026-01-04,Cup,Me,Weak,2,0,1,A-Tier,1010,10
+2026-01-05,Cup,Me,Weak,2,0,1,A-Tier,1020,10
+2026-01-06,Cup,Me,Weak,2,0,1,A-Tier,1030,10
+2026-01-07,Cup,Me,Rare,0,2,0,A-Tier,1020,-10`;
+  const s = computeStats(parseTrdb(parseCsv(trdb)).get('me')!, { today: '2026-02-01' });
+  assert.deepEqual(s.nemesis, { name: 'Strong', wins: 1, losses: 2, winRate: 1 / 3 });
+  assert.deepEqual(s.bestMatchup, { name: 'Weak', wins: 3, losses: 0, winRate: 1 });
+});

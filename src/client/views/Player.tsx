@@ -316,6 +316,38 @@ export const PlayerView = ({
             <Tile label="Maps played" value={s.maps.won + s.maps.lost} />
           </div>
 
+          {(s.nemesis || s.bestMatchup) && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {[
+                { label: 'Nemesis', m: s.nemesis, tone: 'text-rose-600 dark:text-rose-400' },
+                { label: 'Best matchup', m: s.bestMatchup, tone: 'text-emerald-600 dark:text-emerald-400' },
+              ].map(({ label, m, tone }) => (
+                <button
+                  key={label}
+                  disabled={!m}
+                  onClick={() => {
+                    if (!m) return;
+                    setCompare(m.name);
+                    document.getElementById('h2h')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="rounded-lg bg-white p-3 text-left ring-1 ring-stone-200 enabled:hover:ring-amber-600 dark:bg-stone-900 dark:ring-stone-800"
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">{label}</p>
+                  <p className="mt-0.5 truncate text-lg font-bold">{m?.name ?? '–'}</p>
+                  {m && (
+                    <p className="text-xs tabular-nums">
+                      <span className={tone}>{pct(m.winRate)}</span>
+                      <span className="text-stone-500">
+                        {' '}
+                        · {m.wins}W – {m.losses}L
+                      </span>
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {s.byTier.length > 0 && (
             <Section title="By tournament tier">
               <div className="grid grid-cols-4 gap-2 text-center">
@@ -336,6 +368,7 @@ export const PlayerView = ({
             <Aoe4WorldCard key={data.name} name={data.name} />
           </Section>
 
+          <div id="h2h" />
           <Section title="Head-to-head">
             <form
               className="mb-3 flex gap-2"

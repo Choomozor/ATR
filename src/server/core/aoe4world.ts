@@ -35,7 +35,8 @@ function toAccount(p: { name: string; profile_id: number; site_url?: string }, s
   return {
     profileId: p.profile_id,
     name: p.name,
-    url: p.site_url ?? `https://aoe4world.com/players/${p.profile_id}`,
+    // Always https: Reddit's navigateTo refuses the http:// site_url AoE4World returns on profiles.
+    url: `https://aoe4world.com/players/${p.profile_id}`,
     soloRating: solo?.rating ?? null,
     soloRank: solo?.rank ?? null,
     soloRankLevel: solo?.rank_level ?? null,

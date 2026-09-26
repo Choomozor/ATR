@@ -55,8 +55,17 @@ export type PlayerStats = {
   firstMatch: string | null;
   lastMatch: string | null;
   rivals: { name: string; wins: number; losses: number; draws: number }[];
+  /** Opponent with the worst record against (at least MIN_MATCHUP series). */
+  nemesis: Matchup | null;
+  /** Opponent with the best record against (at least MIN_MATCHUP series). */
+  bestMatchup: Matchup | null;
   recent: Match[];
 };
+
+export type Matchup = { name: string; wins: number; losses: number; winRate: number };
+
+/** Minimum number of decided series against an opponent before it counts as a nemesis or best matchup. */
+export const MIN_MATCHUP = 3;
 
 export type HeadToHead = {
   player: string;
@@ -367,6 +376,15 @@ export function computeStats(
     .sort((a, b) => TIERS.indexOf(a[0]) - TIERS.indexOf(b[0]))
     .map(([tier, r]) => ({ tier, ...r, winRate: winRate(r.wins, r.losses) }));
 
+  const matchups: Matchup[] = [...rivals.values()]
+    .filter((r) => r.wins + r.losses >= MIN_MATCHUP)
+    .map((r) => ({ name: r.name, wins: r.wins, losses: r.losses, winRate: r.wins / (r.wins + r.losses) }));
+  // Nemesis: lowest win rate, then most losses. Best matchup: highest win rate, then most wins.
+  const nemesis =
+    [...matchups].filter((m) => m.losses > 0).sort((a, b) => a.winRate - b.winRate || b.losses - a.losses)[0] ?? null;
+  const bestMatchup =
+    [...matchups].filter((m) => m.wins > 0).sort((a, b) => b.winRate - a.winRate || b.wins - a.wins)[0] ?? null;
+
   const rivalList = [...rivals.values()]
     .sort((a, b) => b.wins + b.losses + b.draws - (a.wins + a.losses + a.draws))
     .slice(0, 5);
@@ -383,6 +401,8 @@ export function computeStats(
     firstMatch: matches[0]?.date ?? null,
     lastMatch: matches[matches.length - 1]?.date ?? null,
     rivals: rivalList,
+    nemesis,
+    bestMatchup,
     recent: matches.slice(-(opts.recentCount ?? 10)).reverse(),
   };
 }
