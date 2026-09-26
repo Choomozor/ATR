@@ -3,7 +3,6 @@ import {
   headToHead,
   nameKey,
   predictSeries,
-  updateMovers,
   unpackMatch,
   type Match,
   type PackedMatch,
@@ -14,6 +13,7 @@ import type {
   BoardResponse,
   ErrorResponse,
   H2HResponse,
+  MeResponse,
   PlayerResponse,
   PredictRequest,
   PredictResponse,
@@ -22,7 +22,9 @@ import type {
   TournamentResponse,
   TournamentsResponse,
 } from '../../shared/api';
+import { reddit } from '@devvit/web/server';
 import { getAoe4WorldProfile } from '../core/aoe4world';
+import { PREDICTOR_USERS } from '../core/config';
 import {
   readBoard,
   readMatches,
@@ -44,6 +46,18 @@ async function loadMatches(name: string): Promise<Match[]> {
   return (JSON.parse(raw) as PackedMatch[]).map(unpackMatch);
 }
 
+/** Checked on every request from the viewer's Reddit session; nothing about the viewer is stored. */
+async function canPredict(): Promise<boolean> {
+  try {
+    const username = await reddit.getCurrentUsername();
+    return Boolean(username && PREDICTOR_USERS.some((u) => u.toLowerCase() === username.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
+api.get('/me', async (c) => c.json<MeResponse>({ predictor: await canPredict() }));
+
 api.get('/board', async (c) => {
   const [board, lastSync] = await Promise.all([readBoard(), readSyncStatus()]);
   if (!board) return notSynced(c);
@@ -57,7 +71,6 @@ api.get('/top', async (c) => {
   return c.json<TopResponse>({
     sheetDate: board.sheetDate,
     rows: board.rows.filter((r) => r.active).slice(0, n),
-    movers: updateMovers(board.rows),
   });
 });
 
@@ -69,6 +82,7 @@ api.get('/records', async (c) => {
 
 /** Series win chance between every pair of the given players (up to 32), for the bracket predictor. */
 api.post('/predict', async (c) => {
+  if (!(await canPredict())) return c.json<ErrorResponse>({ status: 'error', message: 'Not available' }, 403);
   const body = await c.req.json<PredictRequest>().catch(() => null);
   const names = [...new Set((body?.names ?? []).map((n) => String(n).trim()).filter(Boolean))].slice(0, 32);
   if (names.length < 2) return c.json<ErrorResponse>({ status: 'error', message: 'Pick at least 2 players' }, 400);

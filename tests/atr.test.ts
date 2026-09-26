@@ -24,6 +24,7 @@ import {
   seedOrder,
   bracketSize,
   bracketOdds,
+  tournamentHighlights,
 } from '../src/shared/atr.ts';
 
 // Real rows copied from the ATR sheet (Tournament ELO + TRDB), 2026-09-25.
@@ -288,4 +289,23 @@ test('seedOrder and bracketOdds for a 4-player bracket', () => {
   const withBye = bracketOdds([0, null, 1, 2], 3, () => 0.5);
   assert.deepEqual(withBye[0], [1, 0.5]);
   assert.ok(Math.abs(withBye.reduce((s, o) => s + o[1]!, 0) - 1) < 1e-9);
+});
+
+test('tournamentHighlights finds the upset, the top clash and the best run', () => {
+  const trdb = parseTrdb(parseCsv(TRDB));
+  const names = new Map([...trdb.keys()].map((k) => [k, k]));
+  const egc = buildTournaments(trdb, names).get('EGC Masters Fall - Season 2: Playoffs')!;
+  const h = tournamentHighlights(egc);
+  assert.equal(h.biggestUpset, null); // MarineLorD, the favourite, won both
+  assert.equal(h.clashOfTitans!.winner, 'marinelord');
+  assert.equal(h.clashOfTitans!.loser, 'VortiX');
+  assert.equal(h.longestSeries!.score, '5–2');
+  assert.deepEqual([h.bestRun!.name, h.bestRun!.wins, h.bestRun!.losses], ['marinelord', 2, 0]);
+  assert.equal(h.totalMaps, 4 + 0 + 5 + 2);
+  assert.equal(h.sweeps, 1);
+  assert.equal(h.favouritesWon, 1);
+
+  const wc = tournamentHighlights(buildTournaments(trdb, names).get('Epohers World Cup 2')!);
+  assert.equal(wc.biggestUpset!.winner, 'VortiX');
+  assert.equal(wc.deciders, 2);
 });

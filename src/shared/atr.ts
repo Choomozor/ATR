@@ -997,3 +997,91 @@ export function bracketOdds(slots: (number | null)[], players: number, p: (i: nu
   }
   return out;
 }
+
+// ---------------------------------------------------------------- tournament highlights
+
+export type SeriesHighlight = {
+  winner: string;
+  loser: string;
+  score: string;
+  date: string;
+  /** Winner's Elo win chance before the series. */
+  chance: number | null;
+  /** Average Tournament Elo of the two players before the series. */
+  averageElo: number | null;
+};
+
+export type TournamentHighlights = {
+  /** Won with the lowest Elo win chance. */
+  biggestUpset: SeriesHighlight | null;
+  /** Highest average Elo of the two players. */
+  clashOfTitans: SeriesHighlight | null;
+  /** Most maps in one series. */
+  longestSeries: SeriesHighlight | null;
+  /** Most series won in the event. */
+  bestRun: { name: string; wins: number; losses: number; change: number } | null;
+  totalMaps: number;
+  /** Series where the loser took no map. */
+  sweeps: number;
+  /** Series decided by a single map. */
+  deciders: number;
+  /** Share of series won by the higher-rated player (null when ratings are missing). */
+  favouritesWon: number | null;
+};
+
+const toHighlight = (m: TournamentSeries): SeriesHighlight | null => {
+  if (m.winner === 'draw') return null;
+  const aWon = m.winner === 'a';
+  const known = m.ratingA > 0 && m.ratingB > 0;
+  return {
+    winner: aWon ? m.a : m.b,
+    loser: aWon ? m.b : m.a,
+    score: aWon ? `${m.scoreA}–${m.scoreB}` : `${m.scoreB}–${m.scoreA}`,
+    date: m.date,
+    chance: known ? (aWon ? winProbability(m.ratingA, m.ratingB) : winProbability(m.ratingB, m.ratingA)) : null,
+    averageElo: known ? (m.ratingA + m.ratingB) / 2 : null,
+  };
+};
+
+export function tournamentHighlights(t: TournamentDetail): TournamentHighlights {
+  const decided = t.matches.map(toHighlight).filter((h): h is SeriesHighlight => h !== null);
+  const pick = (score: (h: SeriesHighlight) => number | null) => {
+    let best: { h: SeriesHighlight; v: number } | null = null;
+    for (const h of decided) {
+      const v = score(h);
+      if (v !== null && (!best || v > best.v)) best = { h, v };
+    }
+    return best?.h ?? null;
+  };
+  const maps = (h: SeriesHighlight) => h.score.split('–').reduce((sum, n) => sum + Number(n), 0);
+
+  let totalMaps = 0;
+  let sweeps = 0;
+  let deciders = 0;
+  let rated = 0;
+  let favourites = 0;
+  for (const m of t.matches) {
+    totalMaps += m.scoreA + m.scoreB;
+    if (m.winner !== 'draw' && Math.min(m.scoreA, m.scoreB) === 0 && Math.max(m.scoreA, m.scoreB) > 1) sweeps++;
+    if (m.winner !== 'draw' && Math.abs(m.scoreA - m.scoreB) === 1 && m.scoreA + m.scoreB >= 3) deciders++;
+    if (m.winner !== 'draw' && m.ratingA > 0 && m.ratingB > 0 && m.ratingA !== m.ratingB) {
+      rated++;
+      if ((m.winner === 'a') === m.ratingA > m.ratingB) favourites++;
+    }
+  }
+
+  const upset = pick((h) => (h.chance === null || h.chance >= 0.5 ? null : 1 - h.chance));
+  const longest = pick((h) => maps(h));
+  const run = [...t.movers].sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.change - a.change)[0];
+
+  return {
+    biggestUpset: upset,
+    clashOfTitans: pick((h) => h.averageElo),
+    longestSeries: longest && maps(longest) > 1 ? longest : null,
+    bestRun: run && run.wins > 0 ? run : null,
+    totalMaps,
+    sweeps,
+    deciders,
+    favouritesWon: rated ? favourites / rated : null,
+  };
+}

@@ -1,4 +1,4 @@
-import type { BoardRow, HeadToHead, Mover, PackedMatch, RecordList, TournamentDetail, TournamentSummary } from './atr';
+import type { BoardRow, HeadToHead, PackedMatch, RecordList, TournamentDetail, TournamentSummary } from './atr';
 
 export type SyncStatus = {
   ok: boolean;
@@ -17,8 +17,6 @@ export type BoardResponse = {
 export type TopResponse = {
   sheetDate: string;
   rows: BoardRow[];
-  /** Biggest Elo moves of the last update (risers first). */
-  movers: Mover[];
 };
 
 export type RecordsResponse = { sheetDate: string; records: RecordList[] };
@@ -70,5 +68,8 @@ export type Aoe4WorldResponse = {
   /** Main account and smurfs, best ranked 1v1 rating first. */
   accounts: Aoe4WorldAccount[];
 };
+
+/** What the current viewer can see. */
+export type MeResponse = { predictor: boolean };
 
 export type ErrorResponse = { status: 'error'; message: string };

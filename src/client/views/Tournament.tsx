@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { winProbability, type TournamentSeries, type TournamentSummary } from '../../shared/atr';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  tournamentHighlights,
+  winProbability,
+  type SeriesHighlight,
+  type TournamentSeries,
+  type TournamentSummary,
+} from '../../shared/atr';
 import type { TournamentResponse, TournamentsResponse } from '../../shared/api';
 import { getJson, rateTone, shortDate } from '../format';
 import { sharePage } from '../share';
@@ -116,6 +122,99 @@ export const TournamentsView = ({ nav }: { nav: Nav }) => {
   );
 };
 
+// ------------------------------------------------------------------ highlights
+
+const HighlightCard = ({ label, onClick, title, sub }: { label: string; onClick: () => void; title: ReactNode; sub: ReactNode }) => (
+  <button
+    onClick={onClick}
+    className="min-w-0 rounded-lg bg-white p-3 text-left ring-1 ring-stone-200 transition-colors hover:bg-amber-50 hover:ring-amber-600 dark:bg-stone-900 dark:ring-stone-800 dark:hover:bg-stone-800"
+  >
+    <p className="text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">{label}</p>
+    <p className="mt-0.5 truncate font-bold">{title}</p>
+    <p className="truncate text-xs text-stone-500 tabular-nums">{sub}</p>
+  </button>
+);
+
+const versus = (h: SeriesHighlight) => (
+  <>
+    {h.winner} <span className="font-normal text-stone-500">beat</span> {h.loser}
+  </>
+);
+
+const Highlights = ({ t, nav }: { t: TournamentResponse; nav: Nav }) => {
+  const h = useMemo(() => tournamentHighlights(t), [t]);
+  const cards: ReactNode[] = [];
+  if (h.biggestUpset) {
+    const u = h.biggestUpset;
+    cards.push(
+      <HighlightCard
+        key="upset"
+        label="Biggest upset"
+        onClick={() => nav.compare(u.winner, u.loser)}
+        title={versus(u)}
+        sub={`${u.score} · only ${Math.max(1, Math.round((u.chance ?? 0) * 100))}% win chance`}
+      />
+    );
+  }
+  if (h.clashOfTitans) {
+    const c = h.clashOfTitans;
+    cards.push(
+      <HighlightCard
+        key="clash"
+        label="Clash of the titans"
+        onClick={() => nav.compare(c.winner, c.loser)}
+        title={versus(c)}
+        sub={`${c.score} · average Elo ${Math.round(c.averageElo ?? 0)}`}
+      />
+    );
+  }
+  if (h.bestRun) {
+    const r = h.bestRun;
+    cards.push(
+      <HighlightCard
+        key="run"
+        label="Best run"
+        onClick={() => nav.player(r.name)}
+        title={r.name}
+        sub={`${r.wins}W – ${r.losses}L · ${r.change > 0 ? '+' : ''}${Math.round(r.change)} Elo`}
+      />
+    );
+  }
+  if (h.longestSeries) {
+    const l = h.longestSeries;
+    cards.push(
+      <HighlightCard
+        key="long"
+        label="Longest series"
+        onClick={() => nav.compare(l.winner, l.loser)}
+        title={versus(l)}
+        sub={`${l.score} · ${l.score.split('–').reduce((sum, n) => sum + Number(n), 0)} maps`}
+      />
+    );
+  }
+
+  const numbers = [
+    { label: 'Maps played', value: h.totalMaps },
+    { label: 'Sweeps', value: h.sweeps },
+    { label: 'Deciding maps', value: h.deciders },
+    { label: 'Favourites won', value: h.favouritesWon === null ? '–' : `${Math.round(h.favouritesWon * 100)}%` },
+  ];
+
+  return (
+    <Section title="Highlights">
+      {cards.length > 0 && <div className="grid grid-cols-2 gap-2">{cards}</div>}
+      <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+        {numbers.map((n) => (
+          <div key={n.label} className="rounded-lg bg-white px-1 py-2 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
+            <p className="text-lg font-bold tabular-nums">{n.value}</p>
+            <p className="text-[10px] uppercase leading-tight tracking-wide text-stone-500">{n.label}</p>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+};
+
 // ------------------------------------------------------------------ one tournament
 
 export const TournamentView = ({
@@ -172,6 +271,8 @@ export const TournamentView = ({
             </p>
           </header>
 
+          <Highlights t={t} nav={nav} />
+
           {(gainers.length > 0 || losers.length > 0) && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {[
@@ -179,12 +280,12 @@ export const TournamentView = ({
                 { title: 'Biggest Elo losses', list: losers },
               ].map((col) => (
                 <Section key={col.title} title={col.title}>
-                  <ul className="divide-y divide-stone-200 rounded-lg bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
+                  <ul className="divide-y divide-stone-200 overflow-hidden rounded-lg bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
                     {col.list.map((m) => (
                       <li key={m.name}>
                         <button
                           onClick={() => nav.player(m.name)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-amber-50 active:bg-amber-100 dark:hover:bg-stone-800 dark:active:bg-stone-700"
                         >
                           <span className="min-w-0 flex-1 truncate font-semibold">{m.name}</span>
                           <span className={`text-xs tabular-nums ${rateTone(m.wins + m.losses ? m.wins / (m.wins + m.losses) : null) || 'text-stone-500'}`}>

@@ -5,6 +5,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { TopResponse } from '../shared/api';
 import { Flag } from './Flag';
+import { Delta } from './ui';
 import { getJson, handOffPage, pageTitle, shortDate, type Page } from './format';
 import { sharedPage } from './share';
 
@@ -39,25 +40,6 @@ export const Splash = () => {
         </div>
         {data && <span className="shrink-0 text-xs text-stone-500">Updated {shortDate(data.sheetDate)}</span>}
       </header>
-
-      {data && data.movers.length > 0 && (
-        <p className="mt-1 flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap text-xs text-stone-500">
-          <span className="shrink-0">Last update:</span>
-          {data.movers.map((m) => (
-            <button
-              key={m.name}
-              onClick={(e) => openRanking(e.nativeEvent, player(m.name))}
-              className="min-w-0 truncate hover:underline"
-            >
-              <span className={m.change > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
-                {m.change > 0 ? '▲' : '▼'}
-              </span>{' '}
-              <span className="font-semibold text-stone-700 dark:text-stone-300">{m.name}</span>{' '}
-              <span className="tabular-nums">{m.change > 0 ? `+${m.change}` : `−${-m.change}`}</span>
-            </button>
-          ))}
-        </p>
-      )}
 
       {error && <p className="py-3 text-sm text-stone-500">{error}</p>}
 
@@ -98,6 +80,9 @@ export const Splash = () => {
                       <Flag country={r.country} />
                     </span>
                     <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
+                    <span className="w-6 shrink-0 text-right text-[10px] tabular-nums">
+                      <Delta value={r.rankChange} />
+                    </span>
                     <span className="shrink-0 font-mono text-xs tabular-nums text-stone-500 dark:text-stone-400">
                       {Math.round(r.elo)}
                     </span>

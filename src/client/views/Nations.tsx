@@ -33,12 +33,12 @@ export const NationsView = ({ rows, nav }: { rows: BoardRow[]; nav: Nav }) => {
               <span className="w-12 shrink-0 text-right font-mono text-sm font-semibold tabular-nums">{n.score}</span>
             </button>
             {open === n.country && (
-              <ul className="mx-4 mb-3 divide-y divide-stone-200 rounded-lg bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
+              <ul className="mx-4 mb-3 divide-y overflow-hidden divide-stone-200 rounded-lg bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
                 {n.top.map((p, j) => (
                   <li key={p.name}>
                     <button
                       onClick={() => nav.player(p.name)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-amber-50 active:bg-amber-100 dark:hover:bg-stone-800 dark:active:bg-stone-700"
                     >
                       <span className={`w-4 text-xs tabular-nums ${j < 3 ? 'font-bold' : 'text-stone-500'}`}>{j + 1}</span>
                       <span className="min-w-0 flex-1 truncate font-semibold">{p.name}</span>

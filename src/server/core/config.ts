@@ -12,6 +12,9 @@ export const sheetCsvUrl = (tab: string): string =>
 export const AOE4WORLD_API = 'https://aoe4world.com/api/v0';
 export const AOE4WORLD_CACHE_SECONDS = 60 * 60;
 
+/** Reddit usernames that can see the Predictor tab (private for now). Case does not matter. */
+export const PREDICTOR_USERS = ['Choom_AOE'];
+
 // Redis keys
 export const KEY_BOARD = 'atr:board';
 export const KEY_TOP10 = 'atr:top10';

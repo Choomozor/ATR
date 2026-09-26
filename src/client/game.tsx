@@ -4,7 +4,7 @@ import { navigateTo } from '@devvit/web/client';
 import { StrictMode, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { nameKey, type BoardRow } from '../shared/atr';
-import type { BoardResponse } from '../shared/api';
+import type { BoardResponse, MeResponse } from '../shared/api';
 import { Flag } from './Flag';
 import { getJson, pageTitle, shortDate, takeOpenPage, type Page } from './format';
 import { Chip, Delta, FormDots, Spinner, WinRate, type Nav } from './ui';
@@ -159,6 +159,16 @@ export const App = () => {
     return page ? [page] : [];
   });
 
+  // The Predictor tab is private: only listed viewers get it (checked by the server).
+  const [predictor, setPredictor] = useState(false);
+  useEffect(() => {
+    getJson<MeResponse>('/api/me').then(
+      (me) => setPredictor(me.predictor),
+      () => setPredictor(false)
+    );
+  }, []);
+  const tabs = (Object.keys(TAB_LABEL) as Tab[]).filter((t) => t !== 'predictor' || predictor);
+
   useEffect(() => {
     getJson<BoardResponse>('/api/board').then(setBoard, (e: unknown) =>
       setError(e instanceof Error ? e.message : 'Could not load the ranking')
@@ -219,7 +229,7 @@ export const App = () => {
               {board && <span className="text-xs text-stone-500">Updated {shortDate(board.sheetDate)}</span>}
             </div>
             <nav className="-mx-4 mt-2 flex gap-4 overflow-x-auto px-4 text-sm font-semibold [scrollbar-width:none]">
-              {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+              {tabs.map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -241,7 +251,7 @@ export const App = () => {
           {board && tab === 'records' && <RecordsView nav={nav} />}
           {board && tab === 'nations' && <NationsView rows={board.rows} nav={nav} />}
           {board && tab === 'tournaments' && <TournamentsView nav={nav} />}
-          {board && tab === 'predictor' && <PredictorView rows={board.rows} nav={nav} />}
+          {board && tab === 'predictor' && predictor && <PredictorView rows={board.rows} nav={nav} />}
 
           {board && (
             <footer className="px-4 pb-6 pt-4 text-center text-[11px] text-stone-500">
