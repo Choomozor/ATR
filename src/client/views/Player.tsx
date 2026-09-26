@@ -1,4 +1,4 @@
-import { context, navigateTo, showToast } from '@devvit/web/client';
+import { navigateTo, showToast } from '@devvit/web/client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   addDays,
@@ -15,20 +15,14 @@ import {
 import type { Aoe4WorldResponse, PlayerResponse } from '../../shared/api';
 import { EloChart } from '../EloChart';
 import { Flag } from '../Flag';
-import { getJson, pct, rateTone, shortDate } from '../format';
+import { civName, getJson, pct, rateTone, shortDate } from '../format';
+import { sharePage } from '../share';
 import { BackButton, Chip, Delta, MatchList, Section, Spinner, Tile, WinRate, type Nav } from '../ui';
 
 type Period = 'all' | '12m' | 'year';
 const today = (): string => new Date().toISOString().slice(0, 10);
 const periodStart = (p: Period): string | null =>
   p === '12m' ? addDays(today(), -365) : p === 'year' ? `${today().slice(0, 4)}-01-01` : null;
-
-const postUrl = (): string | null => {
-  const { postId, subredditName } = context;
-  return postId && subredditName
-    ? `https://www.reddit.com/r/${subredditName}/comments/${postId.replace(/^t3_/, '')}`
-    : null;
-};
 
 // ------------------------------------------------------------------ AoE4World
 
@@ -103,6 +97,22 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
         {main.soloGames ?? 0} games this season
         {data.linked ? '' : ' · found by name'}
       </p>
+      {main.civs.length > 0 && (
+        <>
+          <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-stone-500">Most played civs</p>
+          <ul className="mt-1 space-y-1">
+            {main.civs.map((c) => (
+              <li key={c.civ} className="flex items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">{civName(c.civ)}</span>
+                <span className="w-16 text-right text-xs text-stone-500 tabular-nums">{c.games} games</span>
+                <span className="w-10 text-right text-xs font-semibold tabular-nums">
+                  <WinRate rate={c.winRate / 100} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {others.length > 0 && (
         <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-stone-500">Other accounts</p>
       )}
@@ -136,7 +146,7 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
 
 // ------------------------------------------------------------------ head-to-head
 
-const WinChance = ({ a, b, eloA, eloB, matches }: { a: string; b: string; eloA: number; eloB: number; matches: Match[] }) => {
+export const WinChance = ({ a, b, eloA, eloB, matches }: { a: string; b: string; eloA: number; eloB: number; matches: Match[] }) => {
   const p = predictSeries(eloA, eloB, matches, today());
   const pa = p.probability;
   return (
@@ -163,18 +173,21 @@ const WinChance = ({ a, b, eloA, eloB, matches }: { a: string; b: string; eloA: 
   );
 };
 
-const H2HBox = ({
+export const H2HBox = ({
   player,
   matches,
   opponent,
   board,
   nav,
+  inCompare = false,
 }: {
   player: string;
   matches: Match[];
   opponent: string;
   board: Map<string, BoardRow>;
   nav: Nav;
+  /** Hide the link to the side-by-side view (when already on it). */
+  inCompare?: boolean;
 }) => {
   const h = headToHead(player, matches, opponent);
   const rowA = board.get(nameKey(player));
@@ -206,6 +219,14 @@ const H2HBox = ({
           </div>
           <MatchList matches={h.matches} nav={nav} />
         </>
+      )}
+      {!inCompare && (
+        <button
+          onClick={() => nav.compare(player, h.opponent)}
+          className="mt-3 w-full rounded-full py-2 text-sm font-semibold text-amber-700 ring-1 ring-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-stone-900"
+        >
+          Side-by-side comparison →
+        </button>
       )}
     </>
   );
@@ -251,20 +272,14 @@ export const PlayerView = ({
 
   const row = data?.row ?? null;
 
-  const share = async () => {
-    const url = postUrl();
+  const share = () => {
+    const player = data?.name ?? name;
     const parts = [
-      `${data?.name ?? name}: ${row?.active ? `#${row.rank} in the ATR` : 'inactive in the ATR'}`,
+      `${player}: ${row?.active ? `#${row.rank} in the AoE4 Esports Tournament Ranking` : 'inactive in the AoE4 Esports Tournament Ranking'}`,
       row ? `${Math.round(row.elo)} Tournament Elo` : null,
       s?.series.winRate !== null && s ? `${pct(s.series.winRate)} series won` : null,
     ].filter(Boolean);
-    const text = `${parts.join(', ')}.${url ? ` Full stats: ${url}` : ''}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('Copied: paste it in a comment or a chat');
-    } catch {
-      showToast('Could not copy the link on this device');
-    }
+    void sharePage({ kind: 'player', name: player }, `${parts.join(', ')}.`);
   };
 
   const submitCompare = () => {
@@ -299,10 +314,10 @@ export const PlayerView = ({
                 </p>
               )}
               <button
-                onClick={() => void share()}
+                onClick={share}
                 className="mt-1 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400"
               >
-                Copy link
+                Share ↗
               </button>
             </div>
           </header>
@@ -343,7 +358,11 @@ export const PlayerView = ({
             />
             <Tile label="Tournaments" value={s.tournaments} sub={s.firstMatch ? `since ${shortDate(s.firstMatch)}` : undefined} />
             <Tile label="Series played" value={s.series.wins + s.series.losses + s.series.draws} />
-            <Tile label="Maps played" value={s.maps.won + s.maps.lost} />
+            <Tile
+              label="Best win streak"
+              value={s.bestStreak?.count ?? '–'}
+              sub={s.bestStreak ? shortDate(s.bestStreak.to) : undefined}
+            />
           </div>
 
           {(s.nemesis || s.bestMatchup) && (

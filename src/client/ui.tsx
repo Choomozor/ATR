@@ -80,6 +80,7 @@ export const BackButton = ({ onBack, label }: { onBack: () => void; label: strin
 export type Nav = {
   player: (name: string) => void;
   tournament: (name: string) => void;
+  compare: (a: string, b: string) => void;
 };
 
 export const MatchList = ({ matches, nav }: { matches: Match[]; nav: Nav }) => (

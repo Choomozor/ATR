@@ -18,6 +18,12 @@ import {
   findUpsets,
   buildDigest,
   predictSeries,
+  longestWinStreak,
+  updateMovers,
+  computeRecords,
+  seedOrder,
+  bracketSize,
+  bracketOdds,
 } from '../src/shared/atr.ts';
 
 // Real rows copied from the ATR sheet (Tournament ELO + TRDB), 2026-09-25.
@@ -229,4 +235,57 @@ test('predictSeries: Elo alone without head-to-head, recent results weigh more',
   const mixed = predictSeries(2200, 2000, [mk('2026-09-01', 'L'), mk('2026-08-01', 'L')], '2026-09-26');
   assert.ok(mixed.probability < mixed.eloProbability);
   assert.ok(mixed.h2hShift < 0);
+});
+
+test('longestWinStreak finds the best run of series wins', () => {
+  const m = parseTrdb(parseCsv(TRDB)).get('marinelord')!;
+  assert.deepEqual(longestWinStreak(m), { count: 2, from: '2026-09-19', to: '2026-09-20' });
+  assert.equal(longestWinStreak([]), null);
+});
+
+test('updateMovers picks the biggest risers and fallers of the update', () => {
+  const board = buildBoard(parseEloSheet(parseCsv(ELO)), new Map());
+  assert.deepEqual(
+    updateMovers(board).map((m) => [m.name, m.change]),
+    [
+      ['MarineLorD', 51],
+      ['VortiX', 41],
+      ['Anotand', -67],
+    ]
+  );
+});
+
+test('computeRecords lists peaks, streaks, upsets and volume', () => {
+  const trdb = parseTrdb(parseCsv(TRDB));
+  const board = buildBoard(parseEloSheet(parseCsv(ELO)), trdb);
+  const names = new Map(board.map((r) => [r.name.toLowerCase(), r.name]));
+  const records = computeRecords(trdb, names, board, '2026-09-20');
+  const byId = new Map(records.map((r) => [r.id, r]));
+  assert.equal(byId.get('peak')!.entries[0]!.name, 'MarineLorD');
+  assert.equal(byId.get('peak')!.entries[0]!.value, '2378');
+  // VortiX beat MarineLorD twice as the underdog; the World Cup win had the bigger gap.
+  const upset = byId.get('upsets')!.entries[0]!;
+  assert.equal(upset.name, 'VortiX');
+  assert.equal(upset.other, 'MarineLorD');
+  assert.match(upset.detail, /Epohers World Cup 2/);
+  assert.equal(byId.get('volume')!.entries[0]!.name, 'MarineLorD');
+  assert.equal(byId.get('winrate')!.entries.length, 0); // nobody has 50 series here
+});
+
+test('seedOrder and bracketOdds for a 4-player bracket', () => {
+  assert.deepEqual(seedOrder(4), [1, 4, 2, 3]);
+  assert.deepEqual(seedOrder(8), [1, 8, 4, 5, 2, 7, 3, 6]);
+  assert.equal(bracketSize(5), 8);
+  // Player 0 always wins, others are coin flips.
+  const p = (i: number, j: number) => (i === 0 ? 1 : j === 0 ? 0 : 0.5);
+  const odds = bracketOdds([0, 1, 2, 3], 4, p);
+  assert.deepEqual(odds[0], [1, 1]);
+  assert.deepEqual(odds[1], [0, 0]);
+  assert.deepEqual(odds[2], [0.5, 0]);
+  const total = odds.reduce((sum, o) => sum + o[o.length - 1]!, 0);
+  assert.equal(total, 1);
+  // Byes: a lone player next to a bye goes through for free.
+  const withBye = bracketOdds([0, null, 1, 2], 3, () => 0.5);
+  assert.deepEqual(withBye[0], [1, 0.5]);
+  assert.ok(Math.abs(withBye.reduce((s, o) => s + o[1]!, 0) - 1) < 1e-9);
 });

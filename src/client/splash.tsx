@@ -5,22 +5,22 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { TopResponse } from '../shared/api';
 import { Flag } from './Flag';
-import { OPEN_PLAYER_KEY, getJson, shortDate } from './format';
+import { getJson, handOffPage, pageTitle, shortDate, type Page } from './format';
+import { sharedPage } from './share';
 
-/** Opens the full view; with a name, the full view opens straight on that player's page. */
-const openRanking = (event: MouseEvent, player?: string) => {
-  try {
-    if (player) localStorage.setItem(OPEN_PLAYER_KEY, player);
-    else localStorage.removeItem(OPEN_PLAYER_KEY);
-  } catch {
-    // Storage can be unavailable; the ranking still opens.
-  }
+/** Opens the full view, straight on `page` when given (a player, a comparison, a tournament). */
+const openRanking = (event: MouseEvent, page: Page | null = null) => {
+  handOffPage(page);
   requestExpandedMode(event, 'ranking');
 };
+
+const player = (name: string): Page => ({ kind: 'player', name });
 
 export const Splash = () => {
   const [data, setData] = useState<TopResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Opened from a shared link: offer to jump straight to what was shared.
+  const [shared] = useState(sharedPage);
 
   useEffect(() => {
     getJson<TopResponse>('/api/top?n=32').then(setData, (e: unknown) =>
@@ -39,6 +39,25 @@ export const Splash = () => {
         </div>
         {data && <span className="shrink-0 text-xs text-stone-500">Updated {shortDate(data.sheetDate)}</span>}
       </header>
+
+      {data && data.movers.length > 0 && (
+        <p className="mt-1 flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap text-xs text-stone-500">
+          <span className="shrink-0">Last update:</span>
+          {data.movers.map((m) => (
+            <button
+              key={m.name}
+              onClick={(e) => openRanking(e.nativeEvent, player(m.name))}
+              className="min-w-0 truncate hover:underline"
+            >
+              <span className={m.change > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
+                {m.change > 0 ? '▲' : '▼'}
+              </span>{' '}
+              <span className="font-semibold text-stone-700 dark:text-stone-300">{m.name}</span>{' '}
+              <span className="tabular-nums">{m.change > 0 ? `+${m.change}` : `−${-m.change}`}</span>
+            </button>
+          ))}
+        </p>
+      )}
 
       {error && <p className="py-3 text-sm text-stone-500">{error}</p>}
 
@@ -60,7 +79,7 @@ export const Splash = () => {
               {data?.rows.slice(start, start + 16).map((r, i) => (
                 <li key={r.name} className="flex min-w-0">
                   <button
-                    onClick={(e) => openRanking(e.nativeEvent, r.name)}
+                    onClick={(e) => openRanking(e.nativeEvent, player(r.name))}
                     className={`flex w-full min-w-0 items-center gap-2 rounded px-2 text-left text-[13px] transition-colors hover:bg-amber-100 dark:hover:bg-stone-800 ${
                       i % 2 === 0 ? 'bg-stone-100/80 dark:bg-stone-900' : ''
                     }`}
@@ -90,12 +109,29 @@ export const Splash = () => {
         </div>
       )}
 
-      <button
-        className="mt-2 h-10 w-full cursor-pointer rounded-full bg-amber-600 font-semibold text-white transition-colors hover:bg-amber-700"
-        onClick={(e) => openRanking(e.nativeEvent)}
-      >
-        Full ranking, win rates & head-to-head
-      </button>
+      {shared ? (
+        <div className="mt-2 flex gap-2">
+          <button
+            className="h-10 min-w-0 flex-1 cursor-pointer truncate rounded-full bg-amber-600 px-4 font-semibold text-white transition-colors hover:bg-amber-700"
+            onClick={(e) => openRanking(e.nativeEvent, shared)}
+          >
+            Open {pageTitle(shared)}
+          </button>
+          <button
+            className="h-10 shrink-0 cursor-pointer rounded-full px-4 text-sm font-semibold text-amber-700 ring-1 ring-amber-600 dark:text-amber-400"
+            onClick={(e) => openRanking(e.nativeEvent)}
+          >
+            Full ranking
+          </button>
+        </div>
+      ) : (
+        <button
+          className="mt-2 h-10 w-full cursor-pointer rounded-full bg-amber-600 font-semibold text-white transition-colors hover:bg-amber-700"
+          onClick={(e) => openRanking(e.nativeEvent)}
+        >
+          Full ranking, win rates & head-to-head
+        </button>
+      )}
     </div>
   );
 };

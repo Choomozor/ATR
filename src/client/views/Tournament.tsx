@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { TournamentSummary } from '../../shared/atr';
+import { winProbability, type TournamentSeries, type TournamentSummary } from '../../shared/atr';
 import type { TournamentResponse, TournamentsResponse } from '../../shared/api';
 import { getJson, rateTone, shortDate } from '../format';
+import { sharePage } from '../share';
 import { BackButton, Chip, Delta, Section, Spinner, type Nav } from '../ui';
 
 const TIER_STYLE: Record<string, string> = {
@@ -18,6 +19,15 @@ export const TierBadge = ({ tier }: { tier: string }) => (
     {tier.replace('-Tier', '')}
   </span>
 );
+
+/** The winner's Elo win chance before the series, when both ratings are known. */
+const winnerChance = (m: TournamentSeries): number | null => {
+  if (m.winner === 'draw' || !m.ratingA || !m.ratingB) return null;
+  return m.winner === 'a' ? winProbability(m.ratingA, m.ratingB) : winProbability(m.ratingB, m.ratingA);
+};
+
+/** Below this pre-series win chance, a win is tagged as an upset. */
+const UPSET_CHANCE = 0.35;
 
 const dates = (t: TournamentSummary): string =>
   t.start === t.end ? shortDate(t.start) : `${shortDate(t.start)} – ${shortDate(t.end)}`;
@@ -144,8 +154,21 @@ export const TournamentView = ({
               <span className="text-xs text-stone-500">{dates(t)}</span>
             </div>
             <h2 className="mt-1 text-2xl font-bold [text-wrap:balance]">{t.name}</h2>
-            <p className="text-sm text-stone-500">
-              {t.players} players · {t.series} series
+            <p className="flex items-baseline justify-between gap-2 text-sm text-stone-500">
+              <span>
+                {t.players} players · {t.series} series
+              </span>
+              <button
+                onClick={() =>
+                  void sharePage(
+                    { kind: 'tournament', name: t.name },
+                    `${t.name}: every series, upsets and Elo movers in the AoE4 Esports Tournament Ranking.`
+                  )
+                }
+                className="shrink-0 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400"
+              >
+                Share ↗
+              </button>
             </p>
           </header>
 
@@ -181,7 +204,10 @@ export const TournamentView = ({
 
           <Section title="All series" aside={<span className="text-xs text-stone-500">newest first</span>}>
             <ul className="divide-y divide-stone-200 rounded-lg bg-white ring-1 ring-stone-200 dark:divide-stone-800 dark:bg-stone-900 dark:ring-stone-800">
-              {t.matches.map((m, i) => (
+              {t.matches.map((m, i) => {
+                const chance = winnerChance(m);
+                const upset = chance !== null && chance < UPSET_CHANCE;
+                return (
                 <li key={`${m.date}-${m.a}-${m.b}-${i}`} className="flex items-center gap-2 px-3 py-2 text-sm">
                   <span className="w-14 shrink-0 text-xs text-stone-500">{shortDate(m.date).replace(/ \d{4}$/, '')}</span>
                   <button
@@ -190,9 +216,20 @@ export const TournamentView = ({
                   >
                     {m.a}
                   </button>
-                  <span className="w-12 shrink-0 text-center font-mono tabular-nums">
-                    {m.scoreA}–{m.scoreB}
-                  </span>
+                  <button
+                    onClick={() => nav.compare(m.a, m.b)}
+                    className="flex w-14 shrink-0 flex-col items-center hover:underline"
+                    title={chance === null ? undefined : `Winner's Elo win chance before the series: ${Math.round(chance * 100)}%`}
+                  >
+                    <span className="font-mono tabular-nums">
+                      {m.scoreA}–{m.scoreB}
+                    </span>
+                    {upset && chance !== null && (
+                      <span className="rounded bg-amber-100 px-1 text-[9px] font-bold uppercase leading-4 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        upset {Math.round(chance * 100)}%
+                      </span>
+                    )}
+                  </button>
                   <button
                     onClick={() => nav.player(m.b)}
                     className={`min-w-0 flex-1 truncate text-left ${m.winner === 'b' ? 'font-bold' : 'text-stone-500'}`}
@@ -200,7 +237,8 @@ export const TournamentView = ({
                     {m.b}
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </Section>
         </>

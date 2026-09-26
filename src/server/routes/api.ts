@@ -2,6 +2,8 @@ import { Hono, type Context } from 'hono';
 import {
   headToHead,
   nameKey,
+  predictSeries,
+  updateMovers,
   unpackMatch,
   type Match,
   type PackedMatch,
@@ -13,6 +15,9 @@ import type {
   ErrorResponse,
   H2HResponse,
   PlayerResponse,
+  PredictRequest,
+  PredictResponse,
+  RecordsResponse,
   TopResponse,
   TournamentResponse,
   TournamentsResponse,
@@ -21,6 +26,7 @@ import { getAoe4WorldProfile } from '../core/aoe4world';
 import {
   readBoard,
   readMatches,
+  readRecords,
   readSyncStatus,
   readTop10,
   readTournament,
@@ -51,6 +57,40 @@ api.get('/top', async (c) => {
   return c.json<TopResponse>({
     sheetDate: board.sheetDate,
     rows: board.rows.filter((r) => r.active).slice(0, n),
+    movers: updateMovers(board.rows),
+  });
+});
+
+api.get('/records', async (c) => {
+  const [board, raw] = await Promise.all([readBoard(), readRecords()]);
+  if (!board || !raw) return notSynced(c);
+  return c.json<RecordsResponse>({ sheetDate: board.sheetDate, records: JSON.parse(raw) as RecordsResponse['records'] });
+});
+
+/** Series win chance between every pair of the given players (up to 32), for the bracket predictor. */
+api.post('/predict', async (c) => {
+  const body = await c.req.json<PredictRequest>().catch(() => null);
+  const names = [...new Set((body?.names ?? []).map((n) => String(n).trim()).filter(Boolean))].slice(0, 32);
+  if (names.length < 2) return c.json<ErrorResponse>({ status: 'error', message: 'Pick at least 2 players' }, 400);
+  const board = await readBoard();
+  if (!board) return notSynced(c);
+  const byKey = new Map(board.rows.map((r) => [nameKey(r.name), r]));
+  const rows = names.map((n) => byKey.get(nameKey(n)));
+  const unknown = names.filter((_, i) => !rows[i]);
+  const known = rows.filter((r): r is NonNullable<typeof r> => r !== undefined);
+  const histories = await Promise.all(known.map((r) => loadMatches(r.name)));
+  const today = new Date().toISOString().slice(0, 10);
+  const matrix = known.map((a, i) =>
+    known.map((b, j) => {
+      if (i === j) return 0.5;
+      const games = histories[i]!.filter((m) => nameKey(m.opponent) === nameKey(b.name));
+      return predictSeries(a.elo, b.elo, games, today).probability;
+    })
+  );
+  return c.json<PredictResponse>({
+    players: known.map((r) => ({ name: r.name, elo: r.elo, country: r.country, rank: r.rank })),
+    matrix,
+    unknown,
   });
 });
 

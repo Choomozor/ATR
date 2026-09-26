@@ -5,6 +5,7 @@ import {
   buildDigest,
   buildTournaments,
   addDays,
+  computeRecords,
   findUpsets,
   nameKey,
   summarize,
@@ -24,6 +25,7 @@ import {
   KEY_LAST_SHEET_DATE,
   KEY_MATCHES_POINTER,
   KEY_RANKING_POST,
+  KEY_RECORDS,
   KEY_TOURNAMENT_LIST,
   tournamentsKey,
   KEY_SYNC_STATUS,
@@ -152,6 +154,8 @@ async function storeData(eloRows: string[][], trdbRows: string[][], label: strin
   await redis.set(KEY_BOARD, JSON.stringify(board));
   await redis.set(KEY_TOP10, JSON.stringify(top10));
   await redis.set(KEY_TOURNAMENT_LIST, JSON.stringify(tournamentList));
+  const today = elo.sheetDate || startedAt.slice(0, 10);
+  await redis.set(KEY_RECORDS, JSON.stringify(computeRecords(matches, playerNames, board.rows, today)));
   await redis.set(KEY_MATCHES_POINTER, version);
   if (previous && previous !== version) await redis.del(previous, tournamentsKey(previous));
 
@@ -217,6 +221,10 @@ export async function postDigest(force = false): Promise<string | null> {
   });
   await redis.set(KEY_LAST_POSTED_DATE, digest.sheetDate);
   return `https://www.reddit.com/r/${context.subredditName}/comments/${post.id.replace(/^t3_/, '')}`;
+}
+
+export async function readRecords(): Promise<string | null> {
+  return (await redis.get(KEY_RECORDS)) ?? null;
 }
 
 export async function readTournamentList(): Promise<string | null> {

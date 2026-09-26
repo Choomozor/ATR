@@ -6,19 +6,27 @@ import { createRoot } from 'react-dom/client';
 import { nameKey, type BoardRow } from '../shared/atr';
 import type { BoardResponse } from '../shared/api';
 import { Flag } from './Flag';
-import { getJson, shortDate, takeOpenPlayer } from './format';
+import { getJson, pageTitle, shortDate, takeOpenPage, type Page } from './format';
 import { Chip, Delta, FormDots, Spinner, WinRate, type Nav } from './ui';
+import { CompareView } from './views/Compare';
 import { NationsView } from './views/Nations';
 import { PlayerView } from './views/Player';
+import { PredictorView } from './views/Predictor';
+import { RecordsView } from './views/Records';
 import { TournamentView, TournamentsView } from './views/Tournament';
 
 const PAGE = 100;
 const ATR_SHEET_URL = 'https://docs.google.com/spreadsheets/d/12CKvt3uO1NWBL3DsBN0adcynPUcuOIpCkobvgtymJq8';
 
-type Tab = 'ranking' | 'nations' | 'tournaments';
-type Page = { kind: 'player'; name: string } | { kind: 'tournament'; name: string };
+type Tab = 'ranking' | 'records' | 'nations' | 'tournaments' | 'predictor';
 
-const TAB_LABEL: Record<Tab, string> = { ranking: 'Ranking', nations: 'Nations', tournaments: 'Tournaments' };
+const TAB_LABEL: Record<Tab, string> = {
+  ranking: 'Ranking',
+  records: 'Records',
+  nations: 'Nations',
+  tournaments: 'Tournaments',
+  predictor: 'Predictor',
+};
 
 // ------------------------------------------------------------------ ranking
 
@@ -147,8 +155,8 @@ export const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('ranking');
   const [stack, setStack] = useState<Page[]>(() => {
-    const player = takeOpenPlayer();
-    return player ? [{ kind: 'player', name: player }] : [];
+    const page = takeOpenPage();
+    return page ? [page] : [];
   });
 
   useEffect(() => {
@@ -166,12 +174,13 @@ export const App = () => {
   const nav: Nav = {
     player: (name) => push({ kind: 'player', name }),
     tournament: (name) => push({ kind: 'tournament', name }),
+    compare: (a, b) => push({ kind: 'compare', a, b }),
   };
   const back = () => setStack((s) => s.slice(0, -1));
 
   const page = stack[stack.length - 1];
   const previous = stack[stack.length - 2];
-  const backLabel = previous ? previous.name : TAB_LABEL[tab];
+  const backLabel = previous ? pageTitle(previous) : TAB_LABEL[tab];
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
@@ -183,6 +192,17 @@ export const App = () => {
 
       {page?.kind === 'player' && (
         <PlayerView key={`p:${stack.length}:${page.name}`} name={page.name} board={byName} onBack={back} backLabel={backLabel} nav={nav} />
+      )}
+      {page?.kind === 'compare' && (
+        <CompareView
+          key={`c:${stack.length}:${page.a}:${page.b}`}
+          a={page.a}
+          b={page.b}
+          board={byName}
+          onBack={back}
+          backLabel={backLabel}
+          nav={nav}
+        />
       )}
       {page?.kind === 'tournament' && (
         <TournamentView key={`t:${stack.length}:${page.name}`} name={page.name} onBack={back} backLabel={backLabel} nav={nav} />
@@ -198,12 +218,12 @@ export const App = () => {
               <h1 className="text-xl font-bold">Tournament Elo</h1>
               {board && <span className="text-xs text-stone-500">Updated {shortDate(board.sheetDate)}</span>}
             </div>
-            <nav className="mt-2 flex gap-4 text-sm font-semibold">
+            <nav className="-mx-4 mt-2 flex gap-4 overflow-x-auto px-4 text-sm font-semibold [scrollbar-width:none]">
               {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`border-b-2 pb-1 ${
+                  className={`shrink-0 border-b-2 pb-1 ${
                     tab === t
                       ? 'border-amber-600 text-stone-900 dark:text-stone-100'
                       : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
@@ -218,8 +238,10 @@ export const App = () => {
           {error && <p className="px-4 py-6 text-sm text-stone-500">{error}</p>}
           {!board && !error && <Spinner />}
           {board && tab === 'ranking' && <RankingView board={board} nav={nav} />}
+          {board && tab === 'records' && <RecordsView nav={nav} />}
           {board && tab === 'nations' && <NationsView rows={board.rows} nav={nav} />}
           {board && tab === 'tournaments' && <TournamentsView nav={nav} />}
+          {board && tab === 'predictor' && <PredictorView rows={board.rows} nav={nav} />}
 
           {board && (
             <footer className="px-4 pb-6 pt-4 text-center text-[11px] text-stone-500">

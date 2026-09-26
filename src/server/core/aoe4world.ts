@@ -1,6 +1,6 @@
 import { redis } from '@devvit/web/server';
 import { nameKey, pickAoe4WorldProfile, type Aoe4WorldPlayer } from '../../shared/atr';
-import type { Aoe4WorldAccount, Aoe4WorldResponse } from '../../shared/api';
+import type { Aoe4WorldAccount, Aoe4WorldResponse, CivStat } from '../../shared/api';
 import {
   AOE4WORLD_API,
   AOE4WORLD_CACHE_SECONDS,
@@ -15,7 +15,22 @@ type SoloStats = {
   win_rate?: number;
   games_count?: number;
   last_game_at?: string;
+  civilizations?: { civilization?: string; win_rate?: number; pick_rate?: number; games_count?: number }[] | null;
 };
+
+/** Top civilizations by games played (only on the full profile, not in search results). */
+function topCivs(solo: SoloStats | null | undefined, limit = 5): CivStat[] {
+  return (solo?.civilizations ?? [])
+    .filter((c) => c.civilization && (c.games_count ?? 0) > 0)
+    .sort((a, b) => (b.games_count ?? 0) - (a.games_count ?? 0))
+    .slice(0, limit)
+    .map((c) => ({
+      civ: c.civilization!,
+      games: c.games_count ?? 0,
+      winRate: c.win_rate ?? 0,
+      pickRate: c.pick_rate ?? 0,
+    }));
+}
 
 type SearchPlayer = Aoe4WorldPlayer & {
   site_url?: string;
@@ -43,6 +58,7 @@ function toAccount(p: { name: string; profile_id: number; site_url?: string }, s
     soloWinRate: solo?.win_rate ?? null,
     soloGames: solo?.games_count ?? null,
     lastGameAt: solo?.last_game_at ?? null,
+    civs: topCivs(solo),
   };
 }
 

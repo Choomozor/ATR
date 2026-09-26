@@ -51,6 +51,8 @@ export type PlayerStats = {
   vsTop10: WinLoss | null;
   peak: { rating: number; date: string } | null;
   streak: { result: 'W' | 'L'; count: number } | null;
+  /** Longest run of series won in a row. */
+  bestStreak: { count: number; from: string; to: string } | null;
   tournaments: number;
   firstMatch: string | null;
   lastMatch: string | null;
@@ -371,6 +373,8 @@ export function computeStats(
     else break;
   }
 
+  const bestStreak = longestWinStreak(matches);
+
   const byTier = [...tiers.entries()]
     .filter(([tier]) => TIERS.includes(tier))
     .sort((a, b) => TIERS.indexOf(a[0]) - TIERS.indexOf(b[0]))
@@ -397,6 +401,7 @@ export function computeStats(
     vsTop10,
     peak,
     streak,
+    bestStreak,
     tournaments: tournaments.size,
     firstMatch: matches[0]?.date ?? null,
     lastMatch: matches[matches.length - 1]?.date ?? null,
@@ -405,6 +410,23 @@ export function computeStats(
     bestMatchup,
     recent: matches.slice(-(opts.recentCount ?? 10)).reverse(),
   };
+}
+
+/** Longest run of consecutive series wins (a loss or a draw ends it). Matches oldest first. */
+export function longestWinStreak(matches: Match[]): PlayerStats['bestStreak'] {
+  let best: PlayerStats['bestStreak'] = null;
+  let count = 0;
+  let from = '';
+  for (const m of matches) {
+    if (m.result === 'W') {
+      if (count === 0) from = m.date;
+      count++;
+      if (!best || count > best.count) best = { count, from, to: m.date };
+    } else {
+      count = 0;
+    }
+  }
+  return best;
 }
 
 export function headToHead(player: string, matches: Match[], opponent: string): HeadToHead {
@@ -755,4 +777,223 @@ export function predictSeries(eloA: number, eloB: number, matches: Match[], toda
     weightedLosses: losses,
     h2hShift: Math.round((probability - eloProbability) * 100),
   };
+}
+
+// ---------------------------------------------------------------- movers (feed card)
+
+export type Mover = { name: string; change: number; rank: number | null };
+
+/** Biggest Elo moves of the last ATR update among the top `pool` active players. */
+export function updateMovers(rows: BoardRow[], risers = 2, fallers = 1, pool = 100): Mover[] {
+  const active = rows.filter((r) => r.active).slice(0, pool);
+  const toMover = (r: BoardRow): Mover => ({ name: r.name, change: Math.round(r.eloChange), rank: r.rank });
+  const up = active
+    .filter((r) => Math.round(r.eloChange) > 0)
+    .sort((a, b) => b.eloChange - a.eloChange)
+    .slice(0, risers)
+    .map(toMover);
+  const down = active
+    .filter((r) => Math.round(r.eloChange) < 0)
+    .sort((a, b) => a.eloChange - b.eloChange)
+    .slice(0, fallers)
+    .map(toMover);
+  return [...up, ...down];
+}
+
+// ---------------------------------------------------------------- records
+
+export type RecordEntry = {
+  name: string;
+  /** Headline number, already formatted. */
+  value: string;
+  detail: string;
+  /** Second player involved (the beaten favourite for upsets). */
+  other?: string;
+};
+
+export type RecordList = { id: string; title: string; note: string; entries: RecordEntry[] };
+
+/** Minimum decided series to appear in the best win rate list. */
+export const RECORD_MIN_SERIES = 50;
+
+const monthYear = (iso: string): string => fmtDate(iso).replace(/^\d+ /, '');
+
+/** All-time records, computed once per sync. `today` is the sheet date. */
+export function computeRecords(
+  byPlayer: Map<string, Match[]>,
+  playerNames: Map<string, string>,
+  rows: BoardRow[],
+  today: string,
+  size = 10
+): RecordList[] {
+  const currentElo = new Map(rows.map((r) => [nameKey(r.name), r.elo]));
+  const since = addDays(today, -365);
+  const peaks: { name: string; rating: number; date: string; now: number | undefined }[] = [];
+  const streaks: { name: string; count: number; from: string; to: string }[] = [];
+  const volume: { name: string; series: number; wins: number; losses: number; tournaments: number }[] = [];
+  const climbs: { name: string; change: number; series: number; now: number | undefined }[] = [];
+  const upsets: { name: string; other: string; chance: number; m: Match }[] = [];
+
+  for (const [key, list] of byPlayer) {
+    const name = playerNames.get(key) ?? key;
+    let peak: { rating: number; date: string } | null = null;
+    let wins = 0;
+    let losses = 0;
+    let change = 0;
+    let recent = 0;
+    const events = new Set<string>();
+    for (const m of list) {
+      if (m.ratingAfter > 0 && (!peak || m.ratingAfter > peak.rating)) peak = { rating: m.ratingAfter, date: m.date };
+      if (m.result === 'W') wins++;
+      else if (m.result === 'L') losses++;
+      events.add(m.tournament);
+      if (m.date > since) {
+        change += m.ratingChange;
+        recent++;
+      }
+      if (m.result === 'W' && m.ratingBefore > 0 && m.opponentRatingBefore > 0) {
+        const chance = winProbability(m.ratingBefore, m.opponentRatingBefore);
+        if (chance < 0.5) upsets.push({ name, other: m.opponent, chance, m });
+      }
+    }
+    if (peak) peaks.push({ name, ...peak, now: currentElo.get(key) });
+    const streak = longestWinStreak(list);
+    if (streak) streaks.push({ name, ...streak });
+    volume.push({ name, series: list.length, wins, losses, tournaments: events.size });
+    if (recent > 0) climbs.push({ name, change, series: recent, now: currentElo.get(key) });
+  }
+
+  const round = (n: number) => Math.round(n);
+  const range = (from: string, to: string) => (from === to ? fmtDate(from) : `${monthYear(from)} – ${monthYear(to)}`);
+
+  return [
+    {
+      id: 'peak',
+      title: 'Highest peak Elo',
+      note: 'Best Tournament Elo ever reached',
+      entries: peaks
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, size)
+        .map((p) => ({
+          name: p.name,
+          value: String(round(p.rating)),
+          detail: `${monthYear(p.date)}${p.now ? ` · now ${round(p.now)}` : ''}`,
+        })),
+    },
+    {
+      id: 'streak',
+      title: 'Longest win streaks',
+      note: 'Series won in a row',
+      entries: streaks
+        .sort((a, b) => b.count - a.count || (a.to < b.to ? 1 : -1))
+        .slice(0, size)
+        .map((s) => ({ name: s.name, value: String(s.count), detail: range(s.from, s.to) })),
+    },
+    {
+      id: 'upsets',
+      title: 'Biggest upsets',
+      note: 'Series won with the lowest Elo win chance',
+      entries: upsets
+        .sort((a, b) => a.chance - b.chance)
+        .slice(0, size)
+        .map((u) => ({
+          name: u.name,
+          other: u.other,
+          value: `${Math.max(1, Math.round(u.chance * 100))}%`,
+          detail: `${u.m.score}–${u.m.opponentScore} · ${u.m.tournament} · ${fmtDate(u.m.date)}`,
+        })),
+    },
+    {
+      id: 'winrate',
+      title: 'Best series win rate',
+      note: `At least ${RECORD_MIN_SERIES} series decided`,
+      entries: volume
+        .filter((v) => v.wins + v.losses >= RECORD_MIN_SERIES)
+        .map((v) => ({ ...v, rate: v.wins / (v.wins + v.losses) }))
+        .sort((a, b) => b.rate - a.rate)
+        .slice(0, size)
+        .map((v) => ({ name: v.name, value: `${Math.round(v.rate * 100)}%`, detail: `${v.wins}W – ${v.losses}L` })),
+    },
+    {
+      id: 'climb',
+      title: 'Biggest climbers',
+      note: 'Tournament Elo won over the last 12 months',
+      entries: climbs
+        .filter((c) => c.change > 0)
+        .sort((a, b) => b.change - a.change)
+        .slice(0, size)
+        .map((c) => ({
+          name: c.name,
+          value: `+${round(c.change)}`,
+          detail: `${c.series} series${c.now ? ` · now ${round(c.now)}` : ''}`,
+        })),
+    },
+    {
+      id: 'volume',
+      title: 'Most series played',
+      note: 'All tournaments in the ATR',
+      entries: volume
+        .sort((a, b) => b.series - a.series)
+        .slice(0, size)
+        .map((v) => ({
+          name: v.name,
+          value: String(v.series),
+          detail: `${v.wins}W – ${v.losses}L · ${v.tournaments} tournaments`,
+        })),
+    },
+  ];
+}
+
+// ---------------------------------------------------------------- bracket predictor
+
+/** Bracket positions for seeds 1..n (n a power of two): 1 v n, and 1 and 2 only meet in the final. */
+export function seedOrder(n: number): number[] {
+  let order = [1];
+  while (order.length < n) {
+    const size = order.length * 2;
+    order = order.flatMap((s) => [s, size + 1 - s]);
+  }
+  return order;
+}
+
+export const bracketSize = (players: number): number => {
+  let n = 2;
+  while (n < players) n *= 2;
+  return n;
+};
+
+/**
+ * Single elimination odds. `slots` is the bracket from top to bottom (index into the player
+ * list, or null for a bye); `p(i, j)` is the chance that player i beats player j in a series.
+ * Returns, for each player, the chance to win each round (last entry = win the tournament).
+ */
+export function bracketOdds(slots: (number | null)[], players: number, p: (i: number, j: number) => number): number[][] {
+  const out: number[][] = Array.from({ length: players }, () => []);
+  let alive: number[] = slots.map((s) => (s === null ? 0 : 1));
+  for (let block = 2; block <= slots.length; block *= 2) {
+    const next = alive.map((mine, pos) => {
+      const me = slots[pos];
+      if (me === null || me === undefined || mine === 0) return 0;
+      const start = Math.floor(pos / block) * block;
+      const half = block / 2;
+      const oppStart = pos - start < half ? start + half : start;
+      let win = 0;
+      let anyone = 0;
+      for (let q = oppStart; q < oppStart + half; q++) {
+        const opp = slots[q];
+        const reach = alive[q] ?? 0;
+        if (opp === null || opp === undefined || reach === 0) continue;
+        anyone += reach;
+        win += reach * p(me, opp);
+      }
+      // Nobody can be there (only byes): a walkover.
+      return mine * (win + (1 - anyone));
+    });
+    next.forEach((v, pos) => {
+      const me = slots[pos];
+      if (me !== null && me !== undefined) out[me]!.push(v);
+    });
+    alive = next;
+  }
+  return out;
 }

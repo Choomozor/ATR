@@ -1,4 +1,4 @@
-import type { BoardRow, HeadToHead, PackedMatch, TournamentDetail, TournamentSummary } from './atr';
+import type { BoardRow, HeadToHead, Mover, PackedMatch, RecordList, TournamentDetail, TournamentSummary } from './atr';
 
 export type SyncStatus = {
   ok: boolean;
@@ -17,6 +17,20 @@ export type BoardResponse = {
 export type TopResponse = {
   sheetDate: string;
   rows: BoardRow[];
+  /** Biggest Elo moves of the last update (risers first). */
+  movers: Mover[];
+};
+
+export type RecordsResponse = { sheetDate: string; records: RecordList[] };
+
+export type PredictRequest = { names: string[] };
+export type PredictPlayer = { name: string; elo: number; country: string; rank: number | null };
+export type PredictResponse = {
+  players: PredictPlayer[];
+  /** matrix[i][j]: chance that players[i] beats players[j] in a series (Elo + recent head-to-head). */
+  matrix: number[][];
+  /** Names that are not in the ATR. */
+  unknown: string[];
 };
 
 export type PlayerResponse = {
@@ -43,7 +57,11 @@ export type Aoe4WorldAccount = {
   soloWinRate: number | null;
   soloGames: number | null;
   lastGameAt: string | null;
+  /** Most played civilizations in ranked 1v1 this season, most played first. */
+  civs: CivStat[];
 };
+
+export type CivStat = { civ: string; games: number; winRate: number; pickRate: number };
 
 export type Aoe4WorldResponse = {
   found: boolean;
