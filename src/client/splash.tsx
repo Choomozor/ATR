@@ -114,7 +114,7 @@ export const Splash = () => {
           className="mt-2 h-10 w-full cursor-pointer rounded-full bg-amber-600 font-semibold text-white transition-colors hover:bg-amber-700"
           onClick={(e) => openRanking(e.nativeEvent)}
         >
-          Full ranking, win rates & head-to-head
+          Explore rankings, rivalries & records →
         </button>
       )}
     </div>
