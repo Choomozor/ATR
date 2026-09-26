@@ -110,10 +110,16 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
         <ul className="mt-1 divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-800 dark:border-stone-800">
           {others.map((acc) => (
             <li key={acc.profileId}>
-              <ExternalLink url={acc.url} className="flex w-full items-center gap-2 py-1.5 text-left text-sm hover:underline">
-                <span className="min-w-0 flex-1 truncate">{acc.name}</span>
+              <ExternalLink
+                url={acc.url}
+                className="-mx-1 flex w-[calc(100%+0.5rem)] cursor-pointer items-center gap-2 rounded px-1 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 active:bg-amber-100 dark:hover:bg-stone-800 dark:active:bg-stone-700"
+              >
+                <span className="min-w-0 flex-1 truncate font-medium text-amber-800 dark:text-amber-300">{acc.name}</span>
                 <span className="text-xs text-stone-500 tabular-nums">{acc.soloRank ? `#${acc.soloRank}` : 'unranked'}</span>
                 <span className="w-12 text-right font-mono tabular-nums">{acc.soloRating ?? '–'}</span>
+                <span aria-hidden className="text-xs text-amber-700 dark:text-amber-400">
+                  ↗
+                </span>
               </ExternalLink>
             </li>
           ))}
