@@ -32,6 +32,20 @@ const postUrl = (): string | null => {
 
 // ------------------------------------------------------------------ AoE4World
 
+/**
+ * Reddit silently refuses some outside links (AoE4World among them) and the app can't tell
+ * whether the page opened, so the link is also copied as a fallback.
+ */
+const openExternal = async (url: string) => {
+  navigateTo(url);
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied: if AoE4World did not open, paste it in your browser');
+  } catch {
+    // Clipboard unavailable: nothing more we can do.
+  }
+};
+
 const Aoe4WorldCard = ({ name }: { name: string }) => {
   const [data, setData] = useState<Aoe4WorldResponse | null>(null);
   const [failed, setFailed] = useState(false);
@@ -53,7 +67,7 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
         <p className="truncate font-semibold">{main.name}</p>
         <button
           className="shrink-0 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400"
-          onClick={() => navigateTo(main.url)}
+          onClick={() => void openExternal(main.url)}
         >
           Open on AoE4World ↗
         </button>
@@ -87,7 +101,7 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
           {others.map((acc) => (
             <li key={acc.profileId}>
               <button
-                onClick={() => navigateTo(acc.url)}
+                onClick={() => void openExternal(acc.url)}
                 className="flex w-full items-center gap-2 py-1.5 text-left text-sm"
               >
                 <span className="min-w-0 flex-1 truncate">{acc.name}</span>
