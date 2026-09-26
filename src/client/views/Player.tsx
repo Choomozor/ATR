@@ -1,5 +1,5 @@
 import { context, navigateTo, showToast } from '@devvit/web/client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   addDays,
   computeStats,
@@ -33,18 +33,28 @@ const postUrl = (): string | null => {
 // ------------------------------------------------------------------ AoE4World
 
 /**
- * Reddit silently refuses some outside links (AoE4World among them) and the app can't tell
- * whether the page opened, so the link is also copied as a fallback.
+ * A real link (so the address shows on hover and can be copied with a right-click) that opens
+ * through Reddit's navigateTo. The link is also copied as a fallback, since Reddit may refuse
+ * to open some outside sites without telling the app.
  */
-const openExternal = async (url: string) => {
-  navigateTo(url);
-  try {
-    await navigator.clipboard.writeText(url);
-    showToast('Link copied: if AoE4World did not open, paste it in your browser');
-  } catch {
-    // Clipboard unavailable: nothing more we can do.
-  }
-};
+const ExternalLink = ({ url, className, children }: { url: string; className?: string; children: ReactNode }) => (
+  <a
+    href={url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={className}
+    onClick={(e) => {
+      e.preventDefault();
+      navigateTo(url);
+      navigator.clipboard.writeText(url).then(
+        () => showToast('Link copied: if AoE4World did not open, paste it in your browser'),
+        () => undefined
+      );
+    }}
+  >
+    {children}
+  </a>
+);
 
 const Aoe4WorldCard = ({ name }: { name: string }) => {
   const [data, setData] = useState<Aoe4WorldResponse | null>(null);
@@ -65,12 +75,12 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
     <div className="rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate font-semibold">{main.name}</p>
-        <button
+        <ExternalLink
+          url={main.url}
           className="shrink-0 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400"
-          onClick={() => void openExternal(main.url)}
         >
           Open on AoE4World ↗
-        </button>
+        </ExternalLink>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
         <div>
@@ -100,14 +110,11 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
         <ul className="mt-1 divide-y divide-stone-200 border-t border-stone-200 dark:divide-stone-800 dark:border-stone-800">
           {others.map((acc) => (
             <li key={acc.profileId}>
-              <button
-                onClick={() => void openExternal(acc.url)}
-                className="flex w-full items-center gap-2 py-1.5 text-left text-sm"
-              >
+              <ExternalLink url={acc.url} className="flex w-full items-center gap-2 py-1.5 text-left text-sm hover:underline">
                 <span className="min-w-0 flex-1 truncate">{acc.name}</span>
                 <span className="text-xs text-stone-500 tabular-nums">{acc.soloRank ? `#${acc.soloRank}` : 'unranked'}</span>
                 <span className="w-12 text-right font-mono tabular-nums">{acc.soloRating ?? '–'}</span>
-              </button>
+              </ExternalLink>
             </li>
           ))}
         </ul>
