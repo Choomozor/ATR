@@ -139,7 +139,6 @@ const Aoe4WorldCard = ({ name }: { name: string }) => {
 const WinChance = ({ a, b, eloA, eloB, matches }: { a: string; b: string; eloA: number; eloB: number; matches: Match[] }) => {
   const p = predictSeries(eloA, eloB, matches, today());
   const pa = p.probability;
-  const decided = p.weightedWins + p.weightedLosses > 0;
   return (
     <div className="mb-3 rounded-lg bg-white p-3 ring-1 ring-stone-200 dark:bg-stone-900 dark:ring-stone-800">
       <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-stone-500">Win chance for a series today</p>
@@ -160,17 +159,6 @@ const WinChance = ({ a, b, eloA, eloB, matches }: { a: string; b: string; eloA: 
           {b} · {Math.round(eloB)}
         </span>
       </div>
-      <p className="mt-2 text-[11px] text-stone-500">
-        Elo alone: {Math.round(p.eloProbability * 100)}% for {a}
-        {decided && p.h2hShift !== 0 && (
-          <>
-            {' · '}
-            head-to-head {p.h2hShift > 0 ? '+' : '−'}
-            {Math.abs(p.h2hShift)} pts
-          </>
-        )}
-        {decided ? ' (recent series count more than old ones)' : ' (no head-to-head yet)'}
-      </p>
     </div>
   );
 };
