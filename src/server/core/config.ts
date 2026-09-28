@@ -25,6 +25,8 @@ export const aoe4worldCacheKey = (name: string): string => `aoe4world:cache:v5:$
 export const KEY_TOURNAMENT_LIST = 'atr:tournaments:list';
 export const KEY_DIGEST = 'atr:digest';
 export const KEY_LAST_SHEET_DATE = 'atr:sheet-date:last';
+/** Sheet date of the update before the current one (upsets of the update count from it). */
+export const KEY_PREV_SHEET_DATE = 'atr:sheet-date:prev';
 export const KEY_LAST_POSTED_DATE = 'atr:sheet-date:posted';
 export const KEY_RANKING_POST = 'atr:ranking-post';
 export const KEY_RECORDS = 'atr:records';

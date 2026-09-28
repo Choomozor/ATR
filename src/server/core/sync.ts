@@ -29,6 +29,7 @@ import {
   KEY_DIGEST,
   KEY_LAST_POSTED_DATE,
   KEY_LAST_SHEET_DATE,
+  KEY_PREV_SHEET_DATE,
   KEY_MATCHES_POINTER,
   KEY_RANKING_POST,
   KEY_RECORDS,
@@ -190,14 +191,20 @@ async function storeData(eloRows: string[][], trdbRows: string[][], label: strin
   if (previous && previous !== version) await redis.del(previous, tournamentsKey(previous), ranksKey(previous));
 
   // Summary of this ATR update, for the automatic post. Upsets count from the previous update.
-  const lastSheetDate = await redis.get(KEY_LAST_SHEET_DATE);
-  if (elo.sheetDate && elo.sheetDate !== lastSheetDate) {
-    const since = lastSheetDate && lastSheetDate < elo.sheetDate ? lastSheetDate : addDays(elo.sheetDate, -7);
+  // Rebuilt on every sync, so fixes made in the sheet afterwards (like marking a forfeit) show up.
+  if (elo.sheetDate) {
+    const lastSheetDate = await redis.get(KEY_LAST_SHEET_DATE);
+    const isNewUpdate = elo.sheetDate !== lastSheetDate;
+    if (isNewUpdate && lastSheetDate) await redis.set(KEY_PREV_SHEET_DATE, lastSheetDate);
+    const prev = await redis.get(KEY_PREV_SHEET_DATE);
+    const since = prev && prev < elo.sheetDate ? prev : addDays(elo.sheetDate, -7);
     const digest = buildDigest(board.rows, elo.sheetDate, findUpsets(matches, playerNames, since), await rankingPostUrl());
     await redis.set(KEY_DIGEST, JSON.stringify(digest));
-    await redis.set(KEY_LAST_SHEET_DATE, elo.sheetDate);
-    // Never post on the very first sync after install: that's not an update, just the current state.
-    if (lastSheetDate && (await settings.get<boolean>('autoPostUpdates'))) await postDigest();
+    if (isNewUpdate) {
+      await redis.set(KEY_LAST_SHEET_DATE, elo.sheetDate);
+      // Never post on the very first sync after install: that's not an update, just the current state.
+      if (lastSheetDate && (await settings.get<boolean>('autoPostUpdates'))) await postDigest();
+    }
   }
 
   const status: SyncStatus = {

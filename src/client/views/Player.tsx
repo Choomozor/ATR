@@ -308,7 +308,7 @@ const TitleList = ({ titles, nav }: { titles: Title[]; nav: Nav }) => {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{t.event}</span>
                 <span className="block truncate text-xs text-stone-500">
-                  beat {t.runnerUp} {t.score} in the final
+                  beat {t.runnerUp} {t.score === 'FF' ? 'by forfeit' : t.score} in the final
                 </span>
               </span>
               <span className="shrink-0 text-xs text-stone-500">{shortDate(t.date)}</span>

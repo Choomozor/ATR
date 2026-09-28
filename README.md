@@ -107,7 +107,7 @@ Project layout:
 ### Sheet layout the parser expects
 
 - **Tournament ELO**: player name in column C, Elo in D, last match date in E, `FALSE` in F for active players (empty = inactive), rank change in O, Elo change in P, nationality / sub-region / region in Q, R, S. The update date is in the first row.
-- **TRDB**: found by header name: `Date`, `Tournament`, `Target`, `Opponent`, `Target Score`, `Opponent Score`, `Winner` (1 win, 0 loss), `Tier`, `New TR rating`, `Rating Change`. Each series appears once per player, in chronological order.
+- **TRDB**: found by header name: `Date`, `Tournament`, `Target`, `Opponent`, `Target Score`, `Opponent Score`, `Winner` (1 win, 0 loss), `Tier`, `New TR rating`, `Rating Change`. Each series appears once per player, in chronological order. Optional **`FF`** column (also read as `Forfeit` or `Walkover`): put `1` (or `x`, `TRUE`) on both rows of a series won by forfeit, or write `FF` in a score cell. Forfeits still count as wins and losses, but not as maps played, upsets, highlights or in win-chance predictions.
 
 Player names are matched case-insensitively, so `Corvinus` and `corvinus` in TRDB count as the same player.
 

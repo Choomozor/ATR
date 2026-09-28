@@ -90,8 +90,11 @@ export const MatchList = ({ matches, nav }: { matches: Match[]; nav: Nav }) => (
     {matches.map((m, i) => (
       <li key={`${m.date}-${m.opponent}-${i}`} className="flex items-center gap-2 px-3 py-2 text-sm">
         <ResultBadge r={m.result} />
-        <span className="w-8 shrink-0 text-center font-mono tabular-nums">
-          {m.score}-{m.opponentScore}
+        <span
+          className={`w-8 shrink-0 text-center font-mono tabular-nums ${m.forfeit ? 'text-xs text-stone-500' : ''}`}
+          title={m.forfeit ? 'Won or lost by forfeit' : undefined}
+        >
+          {m.forfeit ? 'FF' : `${m.score}-${m.opponentScore}`}
         </span>
         <div className="min-w-0 flex-1">
           <button className="block max-w-full truncate font-semibold hover:underline" onClick={() => nav.player(m.opponent)}>

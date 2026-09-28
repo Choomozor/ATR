@@ -13,7 +13,7 @@ import { BackButton, Chip, Delta, Section, Spinner, TierBadge, type Nav } from '
 
 /** The winner's Elo win chance before the series, when both ratings are known. */
 const winnerChance = (m: TournamentSeries): number | null => {
-  if (m.winner === 'draw' || !m.ratingA || !m.ratingB) return null;
+  if (m.winner === 'draw' || m.forfeit || !m.ratingA || !m.ratingB) return null;
   return m.winner === 'a' ? winProbability(m.ratingA, m.ratingB) : winProbability(m.ratingB, m.ratingA);
 };
 
@@ -206,7 +206,7 @@ const Highlights = ({ t, nav }: { t: TournamentResponse; nav: Nav }) => {
             </span>
             <span className="block truncate text-lg font-bold">{title.champion}</span>
             <span className="block truncate text-xs text-stone-500">
-              beat {title.runnerUp} {title.score} in the final · {shortDate(title.date)}
+              beat {title.runnerUp} {title.score === 'FF' ? 'by forfeit' : title.score} in the final · {shortDate(title.date)}
             </span>
           </span>
         </button>
@@ -338,8 +338,8 @@ export const TournamentView = ({
                     className="flex w-14 shrink-0 flex-col items-center hover:underline"
                     title={chance === null ? undefined : `Winner's Elo win chance before the series: ${Math.round(chance * 100)}%`}
                   >
-                    <span className="font-mono tabular-nums">
-                      {m.scoreA}–{m.scoreB}
+                    <span className={`font-mono tabular-nums ${m.forfeit ? 'text-xs text-stone-500' : ''}`}>
+                      {m.forfeit ? 'FF' : `${m.scoreA}–${m.scoreB}`}
                     </span>
                     {upset && chance !== null && (
                       <span className="rounded bg-amber-100 px-1 text-[9px] font-bold uppercase leading-4 text-amber-800 dark:bg-amber-900 dark:text-amber-200">

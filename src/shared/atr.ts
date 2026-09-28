@@ -38,6 +38,8 @@ export type Match = {
   /** Both players' Tournament Elo before the series (0 when unknown). */
   ratingBefore: number;
   opponentRatingBefore: number;
+  /** Won or lost by forfeit (FF): counts in the record, but not as maps, upsets or predictions (score kept at 0–0). */
+  forfeit: boolean;
 };
 
 export type WinLoss = { wins: number; losses: number; draws: number; winRate: number | null };
@@ -203,6 +205,25 @@ export function parseEloSheet(rows: string[][]): EloSheet {
 
 // ---------------------------------------------------------------- TRDB tab
 
+/** Header names accepted for the forfeit column in TRDB. */
+const FF_HEADERS = ['ff', 'forfeit', 'walkover', 'w/o'];
+
+/** Column index of the forfeit marker, or -1 when the sheet has none. */
+export const forfeitColumn = (header: string[]): number =>
+  header.findIndex((h) => FF_HEADERS.includes(h.trim().toLowerCase()));
+
+/**
+ * A series is a forfeit when its row is ticked in the FF column (anything but empty, 0, FALSE or NO),
+ * or when "FF" is written in one of the score cells.
+ */
+export function isForfeitRow(r: string[], ffCol: number, scoreCols: number[]): boolean {
+  if (ffCol >= 0) {
+    const v = (r[ffCol] ?? '').trim().toLowerCase();
+    if (v && !['0', 'false', 'no', 'non', 'n'].includes(v)) return true;
+  }
+  return scoreCols.some((c) => c >= 0 && /^(ff|w\/o|wo|forfeit)$/i.test((r[c] ?? '').trim()));
+}
+
 /**
  * TRDB has one row per player per series, from each player's point of view
  * ("Target"), in chronological order. Columns are found by header name.
@@ -224,6 +245,7 @@ export function parseTrdb(rows: string[][]): Map<string, Match[]> {
     ratingChange: col('rating change'),
     ratingBefore: col('target tr'),
     opponentRatingBefore: col('opponent tr'),
+    forfeit: forfeitColumn(header),
   };
   if (idx.target < 0 || idx.opponent < 0 || idx.date < 0) {
     throw new Error('TRDB header not recognised (expected Date, Target, Opponent… columns)');
@@ -248,7 +270,12 @@ export function parseTrdb(rows: string[][]): Map<string, Match[]> {
       ratingChange: round1(num(r[idx.ratingChange])),
       ratingBefore: idx.ratingBefore < 0 ? 0 : round1(num(r[idx.ratingBefore])),
       opponentRatingBefore: idx.opponentRatingBefore < 0 ? 0 : round1(num(r[idx.opponentRatingBefore])),
+      forfeit: isForfeitRow(r, idx.forfeit, [idx.score, idx.opponentScore]),
     };
+    if (match.forfeit) {
+      match.score = 0;
+      match.opponentScore = 0;
+    }
     const key = nameKey(target);
     const list = byPlayer.get(key);
     if (list) list.push(match);
@@ -270,6 +297,7 @@ export type PackedMatch = [
   number,
   number,
   number,
+  (0 | 1)?,
 ];
 
 export const packMatch = (m: Match): PackedMatch => [
@@ -284,6 +312,7 @@ export const packMatch = (m: Match): PackedMatch => [
   m.ratingChange,
   m.ratingBefore,
   m.opponentRatingBefore,
+  m.forfeit ? 1 : 0,
 ];
 
 export const unpackMatch = (p: PackedMatch): Match => ({
@@ -298,6 +327,7 @@ export const unpackMatch = (p: PackedMatch): Match => ({
   ratingChange: p[8],
   ratingBefore: p[9] ?? 0,
   opponentRatingBefore: p[10] ?? 0,
+  forfeit: p[11] === 1,
 });
 
 // ---------------------------------------------------------------- board
@@ -515,6 +545,7 @@ export type TournamentSeries = {
   ratingB: number;
   changeA: number;
   changeB: number;
+  forfeit: boolean;
 };
 
 export type TournamentSummary = {
@@ -580,6 +611,7 @@ export function buildTournaments(byPlayer: Map<string, Match[]>, playerNames: Ma
           ratingB: m.opponentRatingBefore,
           changeA: m.ratingChange,
           changeB: -m.ratingChange,
+          forfeit: m.forfeit,
         });
       }
     }
@@ -653,7 +685,7 @@ export function findUpsets(byPlayer: Map<string, Match[]>, playerNames: Map<stri
   const out: Upset[] = [];
   for (const [key, list] of byPlayer) {
     for (const m of list) {
-      if (m.date <= since || m.result !== 'W' || !m.ratingBefore || !m.opponentRatingBefore) continue;
+      if (m.date <= since || m.result !== 'W' || m.forfeit || !m.ratingBefore || !m.opponentRatingBefore) continue;
       if (m.opponentRatingBefore <= m.ratingBefore) continue;
       out.push({
         date: m.date,
@@ -760,6 +792,7 @@ export function predictSeries(eloA: number, eloB: number, matches: Match[], toda
   let wins = 0;
   let losses = 0;
   for (const m of matches) {
+    if (m.forfeit) continue; // a forfeit says nothing about who plays better
     const ageDays = Math.max(0, (now - Date.parse(`${m.date}T00:00:00Z`)) / 86_400_000);
     const weight = Math.pow(0.5, ageDays / H2H_HALF_LIFE_DAYS);
     if (m.result === 'W') wins += weight;
@@ -867,7 +900,7 @@ export function computeRecords(
         change += m.ratingChange;
         recent++;
       }
-      if (m.result === 'W' && m.ratingBefore > 0 && m.opponentRatingBefore > 0) {
+      if (m.result === 'W' && !m.forfeit && m.ratingBefore > 0 && m.opponentRatingBefore > 0) {
         const chance = winProbability(m.ratingBefore, m.opponentRatingBefore);
         if (chance < 0.5) upsets.push({ name, other: m.opponent, chance, m });
       }
@@ -1104,7 +1137,7 @@ export type TournamentHighlights = {
 };
 
 const toHighlight = (m: TournamentSeries): SeriesHighlight | null => {
-  if (m.winner === 'draw') return null;
+  if (m.winner === 'draw' || m.forfeit) return null;
   const aWon = m.winner === 'a';
   const known = m.ratingA > 0 && m.ratingB > 0;
   return {
@@ -1138,7 +1171,7 @@ export function tournamentHighlights(t: TournamentDetail): TournamentHighlights 
     totalMaps += m.scoreA + m.scoreB;
     if (m.winner !== 'draw' && Math.min(m.scoreA, m.scoreB) === 0 && Math.max(m.scoreA, m.scoreB) > 1) sweeps++;
     if (m.winner !== 'draw' && Math.abs(m.scoreA - m.scoreB) === 1 && m.scoreA + m.scoreB >= 3) deciders++;
-    if (m.winner !== 'draw' && m.ratingA > 0 && m.ratingB > 0 && m.ratingA !== m.ratingB) {
+    if (m.winner !== 'draw' && !m.forfeit && m.ratingA > 0 && m.ratingB > 0 && m.ratingA !== m.ratingB) {
       rated++;
       if ((m.winner === 'a') === m.ratingA > m.ratingB) favourites++;
     }
@@ -1259,6 +1292,7 @@ export function findTitles(rows: string[][], playerNames?: Map<string, string>):
     opponentScore: col('opponent score'),
     winner: col('winner'),
     tier: col('tier'),
+    forfeit: forfeitColumn(header),
   };
   if (idx.target < 0 || idx.opponent < 0 || idx.tournament < 0) return [];
   const canon = (n: string) => playerNames?.get(nameKey(n)) ?? n;
@@ -1286,7 +1320,7 @@ export function findTitles(rows: string[][], playerNames?: Map<string, string>):
       date,
       winner: canon(target),
       loser: canon(opponent),
-      score: `${num(r[idx.score])}–${num(r[idx.opponentScore])}`,
+      score: isForfeitRow(r, idx.forfeit, [idx.score, idx.opponentScore]) ? 'FF' : `${num(r[idx.score])}–${num(r[idx.opponentScore])}`,
     });
     st.losses.set(nameKey(opponent), (st.losses.get(nameKey(opponent)) ?? 0) + 1);
   }

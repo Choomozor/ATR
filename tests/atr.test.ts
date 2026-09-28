@@ -411,3 +411,34 @@ test('rankHistories ranks active players at each month end', () => {
   assert.equal(zerton[0]![0], '2021-09');
   assert.ok(zerton.every(([m]) => m <= '2022-03'));
 });
+
+test('forfeits count as results but not as maps, upsets or predictions', () => {
+  const head = 'Date,Tournament,Target,Opponent,Target TR,Opponent TR,Target Score,Opponent Score,Winner,Tier,FF';
+  const trdb = [
+    head,
+    '2026-09-25,Cup,Low,High,1500,2100,3,0,1,B-Tier,1',
+    '2026-09-25,Cup,High,Low,2100,1500,0,3,0,B-Tier,1',
+    '2026-09-26,Cup,Low,Mid,1500,1900,FF,0,1,B-Tier,',
+    '2026-09-26,Cup,Mid,Low,1900,1500,0,FF,0,B-Tier,',
+    '2026-09-27,Cup,Low,Top,1500,2200,2,1,1,B-Tier,0',
+    '2026-09-27,Cup,Top,Low,2200,1500,1,2,0,B-Tier,0',
+  ].join('\n');
+  const m = parseTrdb(parseCsv(trdb));
+  const low = m.get('low')!;
+  assert.deepEqual(low.map((x) => x.forfeit), [true, true, false]);
+  assert.deepEqual([low[0]!.score, low[0]!.opponentScore], [0, 0]);
+  assert.deepEqual(unpackMatch(packMatch(low[0]!)), low[0]);
+  // Only the real win over Top is an upset.
+  const names = new Map([...m.keys()].map((k) => [k, k]));
+  const upsets = findUpsets(m, names, '2026-09-01');
+  assert.deepEqual(upsets.map((u) => u.loser), ['Top']);
+  // Record keeps the forfeit wins; maps only count the played series.
+  const s = computeStats(low, { today: '2026-09-28' });
+  assert.deepEqual([s.series.wins, s.maps.won, s.maps.lost], [3, 2, 1]);
+  // Head-to-head made only of forfeits leaves the prediction at pure Elo.
+  const p = predictSeries(1500, 2100, [low[0]!], '2026-09-28');
+  assert.ok(Math.abs(p.probability - p.eloProbability) < 1e-12);
+  // Tournament highlights ignore the forfeit.
+  const cup = buildTournaments(m, names).get('Cup')!;
+  assert.equal(tournamentHighlights(cup).biggestUpset!.loser.toLowerCase(), 'top');
+});
