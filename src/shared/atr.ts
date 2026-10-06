@@ -172,9 +172,9 @@ export type EloSheet = { sheetDate: string; rows: Omit<BoardRow, 'wins' | 'losse
 export function parseEloSheet(rows: string[][]): EloSheet {
   let sheetDate = '';
   for (const cell of rows[0] ?? []) {
-    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(cell.trim());
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(cell.trim());
     if (m) {
-      sheetDate = `${m[3]}-${m[2]}-${m[1]}`;
+      sheetDate = `${m[3]}-${m[2]!.padStart(2, '0')}-${m[1]!.padStart(2, '0')}`;
       break;
     }
   }

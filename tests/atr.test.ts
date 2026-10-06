@@ -442,3 +442,8 @@ test('forfeits count as results but not as maps, upsets or predictions', () => {
   const cup = buildTournaments(m, names).get('Cup')!;
   assert.equal(tournamentHighlights(cup).biggestUpset!.loser.toLowerCase(), 'top');
 });
+
+test('sheet date accepts a day or month written with one digit', () => {
+  assert.equal(parseEloSheet([['', '4/10/2026']]).sheetDate, '2026-10-04');
+  assert.equal(parseEloSheet([['', '04/10/2026']]).sheetDate, '2026-10-04');
+});
