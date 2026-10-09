@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATR head-to-head overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --a: #f59e0b;
+    --b: #38bdf8;
+    --ink: #fafaf9;
+    --muted: #a8a29e;
+    --line: rgba(255, 255, 255, 0.09);
+    --panel: rgba(17, 14, 12, 0.94);
+    --win: #22c55e;
+    --loss: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: transparent; color: var(--ink); font-family: Barlow, system-ui, sans-serif; }
+  body.setup { background: #0c0a09; min-height: 100vh; }
+
+  /* The card is drawn at 960x540 and scaled to fit its frame. */
+  #frame { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; }
+  body.setup #frame { position: relative; inset: auto; width: min(960px, calc(100vw - 32px)); aspect-ratio: 16 / 9; margin: 20px auto 40px; }
+  #card {
+    width: 960px; height: 540px; flex: none; transform-origin: center;
+    background: linear-gradient(180deg, rgba(28, 25, 23, 0.96), var(--panel));
+    border: 1px solid var(--line); border-radius: 18px; padding: 26px 34px 24px;
+    display: grid; grid-template-rows: auto auto auto auto 1fr; gap: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  }
+  .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .top b { color: var(--ink); letter-spacing: 0.2em; }
+
+  .players { display: grid; grid-template-columns: 1fr 70px 1fr; align-items: center; }
+  .p { min-width: 0; }
+  .p.b { text-align: right; }
+  .p .row { display: flex; align-items: center; gap: 14px; }
+  .p.b .row { flex-direction: row-reverse; }
+  .p img { width: 46px; height: 34px; border-radius: 5px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15); }
+  .name { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 58px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p.a .name { color: var(--a); }
+  .p.b .name { color: var(--b); }
+  .sub { margin-top: 6px; font-size: 18px; color: var(--muted); font-weight: 500; }
+  .sub strong { color: var(--ink); font-weight: 700; }
+  .vs { text-align: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 26px; color: var(--muted); letter-spacing: 0.08em; }
+
+  .chance { display: grid; grid-template-columns: 90px 1fr 90px; align-items: center; gap: 14px; }
+  .pct { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 40px; line-height: 1; }
+  .pct.a { color: var(--a); }
+  .pct.b { color: var(--b); text-align: right; }
+  .bar { position: relative; height: 16px; border-radius: 99px; background: var(--b); overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; background: var(--a); border-right: 3px solid var(--panel); }
+  .bar-label { position: absolute; left: 50%; top: -22px; transform: translateX(-50%); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .chance-wrap { position: relative; padding-top: 6px; }
+
+  .h2h { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .h2h .big { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; text-align: center; }
+  .h2h .big span { color: var(--muted); font-weight: 500; padding: 0 10px; }
+  .h2h .lbl { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; text-align: center; margin-bottom: 4px; }
+  .h2h .side { font-size: 17px; color: var(--muted); }
+  .h2h .side strong { color: var(--ink); font-weight: 600; }
+  .h2h .side.r { text-align: right; }
+  .last { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .h2h .side.r .last { margin-left: auto; }
+
+  .stats { display: grid; grid-template-rows: repeat(4, 1fr); }
+  .stat { display: grid; grid-template-columns: 1fr 230px 1fr; align-items: center; }
+  .stat + .stat { border-top: 1px solid var(--line); }
+  .stat .v { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 30px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .stat .v.r { justify-content: flex-end; }
+  .stat .v small { font-family: Barlow, sans-serif; font-size: 15px; font-weight: 500; }
+  .stat .v.best { color: var(--ink); }
+  .stat .v.best.a::before, .stat .v.best.b::after { content: ''; width: 8px; height: 8px; border-radius: 50%; }
+  .stat .v.best.a::before { background: var(--a); }
+  .stat .v.best.b::after { background: var(--b); }
+  .stat .l { text-align: center; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .dots { display: flex; gap: 7px; }
+  .dot { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font: 700 13px Barlow, sans-serif; color: #0c0a09; }
+  .dot.W { background: var(--win); }
+  .dot.L { background: var(--loss); }
+  .dot.D { background: var(--muted); }
+  .dot.latest { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ink); }
+  .msg { grid-row: 1 / -1; align-self: center; text-align: center; font-size: 22px; color: var(--muted); }
+
+  /* Setup page (no players in the link yet). */
+  .controls { width: min(960px, calc(100vw - 32px)); margin: 28px auto 0; font-size: 16px; color: #e7e5e4; }
+  .controls h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; }
+  .controls p { color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .pick { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 16px; }
+  .pick input, .pick button, .link input, .link button { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid #44403c; background: #1c1917; color: inherit; min-width: 0; }
+  .pick button, .link button { background: #f59e0b; color: #1c1917; border: 0; font-weight: 700; cursor: pointer; }
+  .link { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 12px; }
+  @media (max-width: 640px) { .pick { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="controls" class="controls" hidden>
+  <h1>Head-to-head overlay</h1>
+  <p>Pick two players, then paste the link below into an OBS browser source (any 16:9 size, for example 960 × 540; the background is transparent). The card refreshes on its own every 10 minutes.</p>
+  <form class="pick" id="pick">
+    <input id="ia" list="names" placeholder="Player 1" autocomplete="off" required>
+    <input id="ib" list="names" placeholder="Player 2" autocomplete="off" required>
+    <button>Show</button>
+  </form>
+  <div class="link"><input id="url" readonly placeholder="The OBS link appears here"><button id="copy" type="button">Copy</button></div>
+  <datalist id="names"></datalist>
+</div>
+<div id="frame"><div id="card"><p class="msg">Loading…</p></div></div>
+<script>
+(() => {
+  const API = new URL('.', location.href).href;
+  const key = (s) => String(s).trim().toLowerCase();
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const fmtDate = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const pct = (x) => (x == null ? '–' : Math.round(x * 100) + '%');
+  const card = document.getElementById('card');
+  const frame = document.getElementById('frame');
+
+  const getJson = async (path) => {
+    const res = await fetch(API + path, { cache: 'no-cache' });
+    if (!res.ok) throw new Error('Could not load ' + path);
+    return res.json();
+  };
+  let index = null;
+  const loadIndex = async () => (index ??= await getJson('players.json'));
+  const findPlayer = (name) => index.players.find((p) => key(p.name) === key(name));
+
+  // Same win chance as the r/aoe4 app: Elo, adjusted by the head-to-head (recent series count more).
+  function winChance(eloA, eloB, series, today) {
+    const elo = 1 / (1 + Math.pow(10, (eloB - eloA) / 400));
+    const now = Date.parse(today + 'T00:00:00Z');
+    let w = 0, l = 0;
+    for (const m of series) {
+      if (m.forfeit) continue;
+      const weight = Math.pow(0.5, Math.max(0, (now - Date.parse(m.date + 'T00:00:00Z')) / 86400000) / 365);
+      if (m.result === 'W') w += weight;
+      else if (m.result === 'L') l += weight;
+      else { w += weight / 2; l += weight / 2; }
+    }
+    return (w + 3 * elo) / (w + l + 3);
+  }
+
+  const flag = (code) => (code ? `<img src="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/${esc(code)}.svg" alt="">` : '');
+  const sub = (p) => (p.active ? `<strong>#${p.rank}</strong> in the world · <strong>${Math.round(p.elo)}</strong> Elo` : `Inactive · <strong>${Math.round(p.elo)}</strong> Elo`);
+  const dots = (form) =>
+    `<span class="dots">${[...form.slice(-5)].map((r, i, a) => `<span class="dot ${r}${i === a.length - 1 ? ' latest' : ''}">${r}</span>`).join('')}</span>`;
+
+  function statRow(label, a, b, cmpA, cmpB) {
+    const best = cmpA == null || cmpB == null || cmpA === cmpB ? '' : cmpA > cmpB ? 'a' : 'b';
+    return `<div class="stat"><div class="v a${best === 'a' ? ' best' : ''}">${a}</div><div class="l">${label}</div><div class="v r b${best === 'b' ? ' best' : ''}">${b}</div></div>`;
+  }
+
+  async function render(nameA, nameB) {
+    await loadIndex();
+    const ia = findPlayer(nameA), ib = findPlayer(nameB);
+    if (!ia || !ib) {
+      card.innerHTML = `<p class="msg">Player not found in the ATR: ${esc(!ia ? nameA : nameB)}</p>`;
+      return;
+    }
+    const [A, B] = await Promise.all([getJson(`players/${ia.slug}.json`), getJson(`players/${ib.slug}.json`)]);
+    const pa = A.player, pb = B.player;
+    const series = A.series.filter((m) => key(m.opponent) === key(pb.name));
+    let sw = 0, sl = 0, mw = 0, ml = 0;
+    for (const m of series) {
+      if (m.result === 'W') sw++;
+      else if (m.result === 'L') sl++;
+      if (!m.forfeit) { mw += m.score; ml += m.opponentScore; }
+    }
+    const chance = winChance(pa.elo, pb.elo, series, A.sheetDate || new Date().toISOString().slice(0, 10));
+    const last = series[series.length - 1];
+    const lastText = last
+      ? `<strong>${esc(last.result === 'W' ? pa.name : last.result === 'L' ? pb.name : 'Draw')}</strong> ${last.forfeit ? 'by forfeit' : `${Math.max(last.score, last.opponentScore)}–${Math.min(last.score, last.opponentScore)}`}`
+      : '';
+    const ya = A.stats.last12Months, yb = B.stats.last12Months;
+    const rate = (y) => (y.wins + y.losses ? `${pct(y.winRate)} <small>${y.wins}–${y.losses}</small>` : '–');
+    const peakA = A.stats.peak ? Math.round(A.stats.peak.rating) : null;
+    const peakB = B.stats.peak ? Math.round(B.stats.peak.rating) : null;
+
+    card.innerHTML = `
+      <div class="top"><b>Head-to-head</b><span>AoE4 Esports Tournament Ranking · ${A.sheetDate ? fmtDate(A.sheetDate) : ''}</span></div>
+      <div class="players">
+        <div class="p a"><div class="row">${flag(pa.code)}<div class="name">${esc(pa.name)}</div></div><div class="sub">${sub(pa)}</div></div>
+        <div class="vs">VS</div>
+        <div class="p b"><div class="row">${flag(pb.code)}<div class="name">${esc(pb.name)}</div></div><div class="sub">${sub(pb)}</div></div>
+      </div>
+      <div class="chance">
+        <div class="pct a">${pct(chance)}</div>
+        <div class="chance-wrap"><span class="bar-label">Win chance</span><div class="bar"><i style="width:${(chance * 100).toFixed(1)}%"></i></div></div>
+        <div class="pct b">${pct(1 - chance)}</div>
+      </div>
+      <div class="h2h">
+        <div class="side">${series.length ? `Maps <strong>${mw}–${ml}</strong>` : ''}</div>
+        <div>${series.length ? `<div class="lbl">Series head-to-head</div><div class="big">${sw}<span>–</span>${sl}</div>` : `<div class="lbl">Head-to-head</div><div class="big" style="font-size:30px">First meeting in the ATR</div>`}</div>
+        <div class="side r">${last ? `<span class="last">Last: ${lastText}</span><span class="last">${esc(fmtDate(last.date))}</span>` : ''}</div>
+      </div>
+      <div class="stats">
+        ${statRow('Titles', A.titles.length, B.titles.length, A.titles.length, B.titles.length)}
+        ${statRow('Win rate · 12 months', rate(ya), rate(yb), ya.wins + ya.losses ? ya.winRate : null, yb.wins + yb.losses ? yb.winRate : null)}
+        ${statRow('Peak Elo', peakA ?? '–', peakB ?? '–', peakA, peakB)}
+        ${statRow('Last 5 series', dots(pa.form), `<span style="margin-left:auto">${dots(pb.form)}</span>`, null, null)}
+      </div>`;
+  }
+
+  function fit() {
+    const s = Math.min(frame.clientWidth / 960, frame.clientHeight / 540);
+    card.style.transform = `scale(${s})`;
+  }
+  new ResizeObserver(fit).observe(frame);
+
+  const params = new URLSearchParams(location.search);
+  const a = params.get('a'), b = params.get('b');
+  const show = (x, y) => render(x, y).catch((e) => { card.innerHTML = `<p class="msg">${esc(e.message)}</p>`; });
+
+  if (a && b && !params.has('setup')) {
+    show(a, b);
+    setInterval(() => show(a, b), 10 * 60 * 1000);
+    return;
+  }
+
+  // Setup page: pick the players, preview, copy the OBS link.
+  document.body.classList.add('setup');
+  const controls = document.getElementById('controls');
+  controls.hidden = false;
+  const ia = document.getElementById('ia'), ib = document.getElementById('ib'), url = document.getElementById('url');
+  const linkFor = (x, y) => `${location.origin}${location.pathname}?a=${encodeURIComponent(x)}&b=${encodeURIComponent(y)}`;
+  loadIndex().then(() => {
+    const ranked = index.players.filter((p) => p.active).sort((x, y) => x.rank - y.rank);
+    const rest = index.players.filter((p) => !p.active);
+    document.getElementById('names').innerHTML = [...ranked, ...rest].map((p) => `<option value="${esc(p.name)}">`).join('');
+    ia.value = a || ranked[0]?.name || '';
+    ib.value = b || ranked[1]?.name || '';
+    url.value = linkFor(ia.value, ib.value);
+    show(ia.value, ib.value);
+  }, (e) => { card.innerHTML = `<p class="msg">${esc(e.message)}</p>`; });
+  document.getElementById('pick').addEventListener('submit', (e) => {
+    e.preventDefault();
+    url.value = linkFor(ia.value, ib.value);
+    show(ia.value, ib.value);
+  });
+  document.getElementById('copy').addEventListener('click', () => {
+    url.select();
+    navigator.clipboard?.writeText(url.value);
+  });
+})();
+</script>
+</body>
+</html>

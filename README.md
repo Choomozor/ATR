@@ -57,6 +57,7 @@ The data is read from the public ATR Google Sheet every 3 hours.
 The same statistics are published as free JSON files for streams, overlays, websites and bots: https://choomozor.github.io/ATR/api/ (no key, CORS open). They are rebuilt every 3 hours from the ATR sheet by the `Public API` workflow on the `main` branch, which runs `scripts/build-api.ts`:
 
 - `meta.json`, `ranking.json`, `players.json`, `players/<slug>.json`, `tournaments.json`, `tournaments/<slug>.json`, `titles.json`, `records.json`, `nations.json`
+- `h2h.html`: head-to-head overlay for streams (OBS browser source): pick two players, copy the link. Source in `scripts/overlay/h2h.html`.
 
 ## For moderators
 

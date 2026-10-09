@@ -23,6 +23,7 @@ import {
   ratingHistory,
   summarize,
 } from '../src/shared/atr.ts';
+import { countryCode } from '../src/shared/countries.ts';
 
 const SHEET_ID = '12CKvt3uO1NWBL3DsBN0adcynPUcuOIpCkobvgtymJq8';
 const TABS = { elo: '🏆 Tournament ELO', trdb: '🗄️TRDB' };
@@ -95,15 +96,16 @@ const ranks = rankHistories(matches, rows, today);
 const tournaments = buildTournaments(matches, playerNames);
 
 // Players: one file each, plus an index.
-const playerIndex: { name: string; slug: string; rank: number | null; elo: number; country: string }[] = [];
+const playerIndex: { name: string; slug: string; rank: number | null; elo: number; country: string; code: string | null; active: boolean }[] = [];
 for (const row of rows) {
   const key = nameKey(row.name);
   const list = matches.get(key) ?? [];
   const slug = slugFor(row.name, 'players');
-  playerIndex.push({ name: row.name, slug, rank: row.rank, elo: row.elo, country: row.country });
+  const code = countryCode(row.country);
+  playerIndex.push({ name: row.name, slug, rank: row.rank, elo: row.elo, country: row.country, code, active: row.active });
   write(`players/${slug}.json`, {
     ...meta,
-    player: row,
+    player: { ...row, code },
     stats: computeStats(list, { today, top10, recentCount: 10 }),
     titles: titles.filter((t) => nameKey(t.champion) === key),
     eloHistory: ratingHistory(list),
@@ -154,6 +156,8 @@ write('meta.json', {
 });
 
 writeFileSync(join(outDir, 'index.html'), docsPage());
+// Broadcast overlay (head-to-head) that reads the files above.
+writeFileSync(join(outDir, 'h2h.html'), readFileSync(new URL('./overlay/h2h.html', import.meta.url), 'utf8'));
 
 function docsPage(): string {
   const ex = playerIndex[0]?.slug ?? 'marinelord';
@@ -178,6 +182,8 @@ code{background:#f0eeec;padding:1px 4px;border-radius:4px}td{padding:6px 8px;bor
 Rebuilt every 3 hours from the <a href="${source.sheet}">ATR sheet</a>. Last sheet update: <b>${elo.sheetDate || 'unknown'}</b>.</p>
 <p>Plain GET requests, no key, CORS open. Please credit "AoE4 Esports Tournament Ranking (ATR)" when you show the data.</p>
 <table>${rows.map(([f, d]) => `<tr><td><a href="${f}"><code>${f}</code></a></td><td>${d}</td></tr>`).join('')}</table>
+<h2>Head-to-head overlay</h2>
+<p><a href="h2h.html">h2h.html</a>: a ready-made head-to-head card for streams. Open it, pick two players, and paste the link it gives you into an OBS browser source.</p>
 <p>Win chance of a series between two players: <code>1 / (1 + 10 ^ ((eloB - eloA) / 400))</code>.</p>
 </body></html>`;
 }
