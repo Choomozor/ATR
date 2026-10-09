@@ -1,0 +1,44 @@
+name: Public API
+
+# Rebuilds the ATR public API (api/ folder of this site) from the ATR sheet every 3 hours,
+# with the same code as the r/aoe4 app (branch reddit-app). Commits only when the data changed.
+on:
+  schedule:
+    - cron: '23 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: public-api
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: site
+      - uses: actions/checkout@v4
+        with:
+          ref: reddit-app
+          path: app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build the API from the sheet
+        run: node --experimental-strip-types --no-warnings=ExperimentalWarning app/scripts/build-api.ts site/api
+      - name: Commit if the data changed
+        working-directory: site
+        run: |
+          git add -A api
+          if git diff --cached --quiet -- . ':(exclude)api/meta.json' && git ls-files --error-unmatch api/ranking.json >/dev/null 2>&1; then
+            echo "No new data."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "API: sheet update $(node -p "require('./api/meta.json').sheetDate")"
+          git push
