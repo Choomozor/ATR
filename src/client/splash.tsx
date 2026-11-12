@@ -30,7 +30,7 @@ export const Splash = () => {
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-stone-50 px-4 py-3 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
+    <div className="flex h-full flex-col bg-stone-50 px-3 py-3 text-stone-900 min-[480px]:px-4 dark:bg-stone-950 dark:text-stone-100">
       <header className="flex items-baseline justify-between gap-2">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-400">
@@ -43,9 +43,11 @@ export const Splash = () => {
 
       {error && <p className="py-3 text-sm text-stone-500">{error}</p>}
 
-      {/* Two columns of 16 so the whole top 32 fits without scrolling inside the feed. */}
+      {/* Two columns of 16 so the whole top 32 fits without scrolling inside the feed.
+          Below 480px (phones) the rows get tighter and unchanged ranks drop their dash,
+          so the names stay readable. */}
       {!error && (
-        <div className="mt-2 flex min-h-0 flex-1 gap-3 overflow-hidden">
+        <div className="mt-2 flex min-h-0 flex-1 gap-2 overflow-hidden min-[480px]:gap-3">
           {[0, 16].map((start) => (
             <ol
               key={start}
@@ -62,13 +64,13 @@ export const Splash = () => {
                 <li key={r.name} className="flex min-w-0">
                   <button
                     onClick={(e) => openRanking(e.nativeEvent, player(r.name))}
-                    className={`flex w-full min-w-0 items-center gap-2 rounded px-2 text-left text-[13px] transition-colors hover:bg-amber-100 dark:hover:bg-stone-800 ${
+                    className={`flex w-full min-w-0 items-center gap-1 rounded px-1 text-left text-[12px] transition-colors hover:bg-amber-100 min-[480px]:gap-2 min-[480px]:px-2 min-[480px]:text-[13px] dark:hover:bg-stone-800 ${
                       i % 2 === 0 ? 'bg-stone-100/80 dark:bg-stone-900' : ''
                     }`}
                     title={`${r.name}: open the player page`}
                   >
                     <span
-                      className={`w-5 shrink-0 text-right text-[11px] tabular-nums ${
+                      className={`w-4 shrink-0 text-right text-[10px] tabular-nums min-[480px]:w-5 min-[480px]:text-[11px] ${
                         (r.rank ?? 99) <= 3
                           ? 'font-bold text-amber-700 dark:text-amber-400'
                           : 'font-medium text-stone-400 dark:text-stone-500'
@@ -80,10 +82,14 @@ export const Splash = () => {
                       <Flag country={r.country} />
                     </span>
                     <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
-                    <span className="w-6 shrink-0 text-right text-[10px] tabular-nums">
+                    <span
+                      className={`shrink-0 text-right text-[9px] tabular-nums min-[480px]:w-6 min-[480px]:text-[10px] ${
+                        r.rankChange === 0 ? 'hidden min-[480px]:inline' : ''
+                      }`}
+                    >
                       <Delta value={r.rankChange} />
                     </span>
-                    <span className="shrink-0 font-mono text-xs tabular-nums text-stone-500 dark:text-stone-400">
+                    <span className="shrink-0 text-[11px] tabular-nums text-stone-500 min-[480px]:font-mono min-[480px]:text-xs dark:text-stone-400">
                       {Math.round(r.elo)}
                     </span>
                   </button>
